@@ -1,0 +1,7 @@
+name: t2i_enhance
+display_name: T2I Enhance
+desc: Render Markdown structure before AstrBot text-to-image, preserving headings, lists, quotes, code blocks, and tables.
+help: Enable this plugin and keep your t2i template using {{ text | safe }}.
+version: v1.0.0
+author: Codex
+repo: https://github.com/Sean-CodingForLife/astrbot_plugin_t2i_enhance
