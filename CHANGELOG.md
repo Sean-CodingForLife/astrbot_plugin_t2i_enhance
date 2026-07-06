@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.0 - 2026-07-06
+
+- 重写 README，补充适用场景、快速开始、工作原理、项目结构和开发说明。
+- 新增仓库基础文件，包括 `LICENSE`、`.gitignore`、`.editorconfig`、`CONTRIBUTING.md`、`SECURITY.md`、`CODE_OF_CONDUCT.md`。
+- 新增 GitHub issue / pull request 模板，方便后续维护和协作。
+
 ## v1.1.0 - 2026-07-06
 
 - 通过 `_conf_schema.json` 新增插件设置，支持配置模板排除列表、Markdown 扩展、HTML 检测规则和 sanitization 白名单。

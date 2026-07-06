@@ -74,7 +74,7 @@ def should_convert_for_t2i(context: Context, plugin_config, event: AstrMessageEv
     "t2i_enhance",
     "Codex",
     "T2I Enhance: render Markdown structure before AstrBot text-to-image.",
-    "1.1.0",
+    "1.2.0",
 )
 class T2IEnhancePlugin(Star):
     def __init__(self, context: Context, config):
