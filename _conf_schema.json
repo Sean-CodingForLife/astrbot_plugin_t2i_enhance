@@ -89,7 +89,7 @@
   },
   "allowed_attributes": {
     "description": "Allowed HTML attributes after sanitization.",
-    "type": "dict",
+    "type": "object",
     "hint": "Maps tag names to the list of attributes that may survive bleach.clean(...).",
     "default": {
       "a": [
