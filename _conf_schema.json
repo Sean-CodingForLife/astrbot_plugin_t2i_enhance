@@ -2,35 +2,49 @@
   "plugin_enabled": {
     "description": "是否启用 T2I Enhance 接管渲染。",
     "type": "bool",
-    "hint": "开启后，插件会在命中 T2I 条件时，按当前官方模板名查找绑定配置并接管渲染。",
+    "hint": "开启后，插件会在命中 T2I 条件时使用插件自己维护的模板配置进行渲染。",
     "default": true
   },
+  "active_profile": {
+    "description": "当前启用的插件模板配置名。",
+    "type": "string",
+    "hint": "填写 template_profiles 中某一条配置的 name。留空时默认使用第一条已启用配置。",
+    "default": "default"
+  },
   "template_profiles": {
-    "description": "按官方模板名绑定的增强配置列表。",
+    "description": "插件自己维护的模板配置列表。",
     "type": "template_list",
-    "hint": "当前激活模板命中对应 template_name 时，插件就使用这组增强配置。",
+    "hint": "这里的 HTML 模板由插件自己保存和使用，不再读取任何官方模板内容。",
     "templates": {
-      "template_profile": {
-        "name": "模板绑定配置",
-        "hint": "一条配置对应一个官方 T2I 模板名。",
-        "display_item": "template_name",
+      "plugin_template_profile": {
+        "name": "插件模板配置",
+        "hint": "一条配置对应一个插件自维护模板。",
+        "display_item": "name",
         "hide_hint_in_list": true,
         "items": {
           "__template_key": {
             "type": "string",
-            "default": "template_profile",
+            "default": "plugin_template_profile",
             "invisible": true
           },
           "enabled": {
-            "description": "是否启用这条绑定配置。",
+            "description": "是否启用这条模板配置。",
             "type": "bool",
             "default": true
           },
-          "template_name": {
-            "description": "绑定的官方 T2I 模板名。",
+          "name": {
+            "description": "模板配置名。",
             "type": "string",
-            "hint": "必须与 AstrBot 当前激活模板名一致，例如 base、test。",
-            "default": "base"
+            "hint": "用于 active_profile 选择当前启用的插件模板。",
+            "default": "default"
+          },
+          "template_html": {
+            "description": "完整 HTML 模板内容。",
+            "type": "text",
+            "hint": "这里的模板可直接使用 text、raw_text、content、html、bg_url、date、time、datetime、自定义变量等。",
+            "editor_mode": true,
+            "editor_language": "html",
+            "default": "<!doctype html>\n<html>\n<head>\n  <meta charset=\"utf-8\"/>\n  <title>New Template</title>\n</head>\n<body>\n  <!-- 从这里开始编辑 -->\n  <article>{{ text | safe }}</article>\n</body>\n</html>\n"
           },
           "inject_datetime": {
             "description": "是否注入当前日期和时间变量。",
@@ -65,7 +79,7 @@
           "render_markdown": {
             "description": "是否先把原始文本渲染为 Markdown HTML。",
             "type": "bool",
-            "hint": "开启后，会先把前导文本转换为 Markdown HTML，再注入到模板里的 content/html。",
+            "hint": "开启后，会先把前导文本转换为 Markdown HTML，再注入到模板里的 text/content/html。",
             "default": true
           },
           "sanitize_html_input": {
@@ -175,9 +189,10 @@
     },
     "default": [
       {
-        "__template_key": "template_profile",
+        "__template_key": "plugin_template_profile",
         "enabled": true,
-        "template_name": "base",
+        "name": "default",
+        "template_html": "<!doctype html>\n<html>\n<head>\n  <meta charset=\"utf-8\"/>\n  <title>New Template</title>\n</head>\n<body>\n  <!-- 从这里开始编辑 -->\n  <article>{{ text | safe }}</article>\n</body>\n</html>\n",
         "inject_datetime": true,
         "timezone": "Asia/Shanghai",
         "datetime_format": "%Y-%m-%d %H:%M:%S",

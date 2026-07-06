@@ -1,166 +1,148 @@
 # T2I Enhance
 
-> 按官方模板名绑定增强配置，接管 AstrBot T2I 渲染，并且默认兼容官方模板里的 `{{ text | safe }}`。
+> 插件自己维护 HTML 模板，自己注入变量，自己调用 `html_render(template, data, options)` 渲染，不再读取或接管任何官方模板内容。
 
 ![T2I Enhance Icon](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/icon.svg)
 
 ## 先看这个
 
-这部分最重要，第一次使用前建议先看完。
+这版从架构上已经和官方模板彻底分开。
 
-### 1. 插件不负责保存 HTML 模板
+### 1. 官方模板是官方的，插件模板是插件自己的
 
-这插件不会在插件设置里再维护一份 HTML 模板。
+现在开始，这个插件不再：
 
-现在的分工是：
+- 读取官方模板 HTML
+- 绑定官方模板名
+- 跟随官方模板切换
+- 接手任何官方模板内容
 
-- 官方模板页面：负责保存和编辑 HTML 模板
-- 本插件：负责按模板名绑定增强配置，并接管最终渲染
+现在的分工非常明确：
 
-也就是说，**模板内容仍然在 AstrBot 官方 T2I 模板系统里维护。**
+- AstrBot 官方模板：官方自己的系统，和本插件无关
+- T2I Enhance 模板：插件自己维护，插件自己使用
 
-### 2. 插件现在默认兼容官方模板
+也就是说，**不做交叉，不做混用，不做联动。**
 
-这是这次文档里最需要强调的点。
+### 2. 为什么要这样改
 
-AstrBot 官方默认模板通常这样写正文：
+因为官方模板编辑器保存模板时有变量白名单限制。
 
-```html
-<article>{{ text | safe }}</article>
-```
+比如你想在模板里写：
 
-为了避免第一次接入时“明明开了 Markdown 渲染却完全没效果”，插件现在会把**增强后的正文结果**同时写回：
+- `{{ bg_url }}`
+- `{{ content | safe }}`
+- `{{ datetime }}`
 
-- `text`
-- `content`
-- `html`
+官方模板编辑器会直接拦截，不让保存。
 
-并额外保留：
+所以如果插件还依赖官方模板内容，就会一直被官方模板保存校验卡住。
 
-- `raw_text`：未经过 Markdown 渲染的原始文本
+现在改成插件自己维护模板后，这个限制就不再存在。
 
-所以现在有两种都能正常工作的写法：
+### 3. 现在的核心原则
 
-官方默认写法：
+从 `v3.0.0` 开始，这个插件只有一条路线：
 
-```html
-<article>{{ text | safe }}</article>
-```
+- 模板 HTML 由插件自己保存
+- 模板变量由插件自己注入
+- 渲染流程由插件自己执行
 
-增强写法：
+官方只剩下两件事还会影响插件：
 
-```html
-<article>{{ content | safe }}</article>
-```
+- AstrBot 的 T2I 总开关
+- AstrBot 的 T2I 触发阈值
 
-结论：
+除此之外，插件不再依赖官方模板系统。
 
-- 第一次接入时，不改官方默认模板正文变量，也能看到 Markdown 生效
-- 如果你想语义更清晰，后续再改成 `{{ content | safe }}` 更合适
+## 现在怎么工作
 
-### 3. 为什么以前会让人觉得“插件失效了”
+插件渲染流程变成：
 
-因为插件早期增强语义是：
+1. 检查当前 AstrBot 是否开启 T2I
+2. 检查当前文本长度是否超过 AstrBot 当前阈值
+3. 从插件配置里取出当前启用的 `active_profile`
+4. 读取这条 profile 里的 `template_html`
+5. 生成模板变量 `data`
+6. 调用 `html_render(template_html, data, options)`
+7. 把结果替换成图片
 
-- `text`：原始文本
-- `content`：Markdown 渲染后的 HTML
+所以现在模板来源只有一个：
 
-这会导致一个很糟糕的首次体验：
-
-1. 用户绑定了官方模板名
-2. 打开了 Markdown 渲染
-3. 去测试
-4. 官方模板还在用 `{{ text | safe }}`
-5. 看起来就像插件完全没生效
-
-现在这条坑已经补上了，插件默认兼容官方模板，不需要第一次就手改正文变量。
-
-## 插件到底做什么
-
-`T2I Enhance` 不是“全局一套增强配置”，而是：
-
-1. 先读取当前 AstrBot 已激活的官方 T2I 模板名
-2. 在插件自己的 `template_profiles` 里查找同名配置
-3. 读取当前官方模板 HTML
-4. 生成这一组模板专属的增强变量
-5. 调用 `html_render(template, data, options)` 渲染
-6. 把结果直接替换成图片
-
-也就是说：
-
-- 模板 HTML：官方维护
-- 模板增强参数：插件维护
-- 最终渲染执行：插件接管
+- `template_profiles[].template_html`
 
 ## 快速上手
 
 第一次使用建议按这个顺序来：
 
-1. 在 AstrBot 设置里选好当前要用的官方 T2I 模板
-2. 到官方“自定义文转图 HTML 模板”页面里编辑那个模板
-3. 在插件设置里新增一条 `template_profiles`
-4. 把这条配置里的 `template_name` 填成同一个官方模板名
-5. 打开 `render_markdown`
-6. 直接测试
+1. 打开插件配置
+2. 在 `template_profiles` 里保留或新增一条模板配置
+3. 给这条配置起一个 `name`
+4. 把 `active_profile` 填成这个 `name`
+5. 在这条配置的 `template_html` 里写模板
+6. 打开 `render_markdown`
+7. 直接测试
 
-如果你现在的官方模板正文还是：
+默认模板就是：
 
 ```html
-<article>{{ text | safe }}</article>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>New Template</title>
+</head>
+<body>
+  <!-- 从这里开始编辑 -->
+  <article>{{ text | safe }}</article>
+</body>
+</html>
 ```
-
-也没问题，这版插件会直接兼容。
 
 ## 最容易踩坑的地方
 
-这部分建议重点看。
+### 1. `active_profile` 没填对
 
-### 1. `template_name` 没填对
+插件现在不再按官方模板名命中配置，而是按：
 
-插件是“按当前官方模板名命中配置”的。
+- 顶层 `active_profile`
+- 对应 `template_profiles[].name`
 
-如果当前激活模板名是 `test`，而你在插件配置里写的是 `base`，那插件不会使用这条配置。
+这两个值来选择当前模板。
 
-要保证：
+如果 `active_profile = neon`，但你的模板配置名是 `default`，那插件不会用到你想要的模板。
 
-- 当前激活模板名
-- `template_profiles` 里的 `template_name`
+### 2. 你还在官方模板页里改模板
 
-这两个值完全一致。
+现在已经没用了。
 
-### 2. 你以为模板也在插件里
+因为插件不再读取官方模板 HTML，所以你在官方模板页里改：
 
-不是。
+- `{{ bg_url }}`
+- `{{ datetime }}`
+- `{{ content | safe }}`
 
-插件设置里没有 HTML 编辑器，不代表模板丢了，而是因为：
+都不会影响插件这边的渲染。
 
-- HTML 模板在官方页面里
-- 插件只管理绑定配置和增强变量
+你现在要改的是：
 
-### 3. 你想用背景图变量，但模板没写 `{{ bg_url }}`
+- 插件配置里的 `template_profiles[].template_html`
 
-插件能注入 `bg_url`，但模板是否使用它，是模板自己的事。
+### 3. 你把背景图链接写到 `custom_vars_json`
 
-如果模板里没写：
+不对。
 
-```html
-{{ bg_url }}
-```
+背景图应该放在：
 
-或者没把它放进 CSS / style 里，那背景图增强当然不会显示。
+- `background_candidates`
 
-### 4. 你想拿原始文本，但现在 `text` 已经是增强结果
-
-为了兼容官方默认模板，现在：
-
-- `text` 是增强后的正文
-- `raw_text` 才是原始文本
-
-如果你模板里真的需要“未经 Markdown 渲染的原文”，请用：
+模板里写：
 
 ```html
-{{ raw_text }}
+url("{{ bg_url }}")
 ```
+
+不要自己在 `custom_vars_json` 里重复定义 `bg_url`。
 
 ## 变量说明
 
@@ -186,20 +168,19 @@ AstrBot 官方默认模板通常这样写正文：
 - `weekday`
 - `version`
 
-每条绑定配置里的 `custom_vars_json` 也会一起注入。
+每条模板配置里的 `custom_vars_json` 也会一起注入。
 
 重点解释：
 
-- `text`：增强后的正文，默认兼容官方模板
+- `text`：增强后的正文，默认适合直接输出
 - `raw_text`：原始文本，未经过 Markdown 渲染
-- `content`：增强后的正文 HTML，推荐你后续逐步改用它
+- `content`：增强后的正文 HTML
 - `html`：同 `content`
+- `template_name`：当前插件模板配置名，不再是官方模板名
 
 ## 模板怎么写
 
 ### 最省事的写法
-
-继续沿用官方默认正文：
 
 ```html
 <article>{{ text | safe }}</article>
@@ -207,12 +188,10 @@ AstrBot 官方默认模板通常这样写正文：
 
 优点：
 
-- 第一次接入不用改模板
+- 第一次接入不用多想
 - Markdown 增强可以直接生效
 
 ### 推荐写法
-
-如果你已经明确要走插件增强语义，建议用：
 
 ```html
 <article>{{ content | safe }}</article>
@@ -225,25 +204,49 @@ AstrBot 官方默认模板通常这样写正文：
 
 ### 原文写法
 
-如果你就是要拿未经渲染的原文：
-
 ```html
 <article>{{ raw_text }}</article>
 ```
 
-## 绑定配置说明
+### 背景图写法
 
-插件配置定义见 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1)。
+```css
+background:
+  linear-gradient(rgba(3, 6, 12, 0.55), rgba(3, 6, 12, 0.7)),
+  url("{{ bg_url }}") center / cover no-repeat;
+```
 
-顶层配置只有两个：
+更稳一点：
+
+```jinja2
+background:
+  linear-gradient(rgba(3, 6, 12, 0.55), rgba(3, 6, 12, 0.7))
+  {% if bg_url %}, url("{{ bg_url }}") center / cover no-repeat{% endif %};
+```
+
+### 时间变量写法
+
+```html
+<span>{{ date }}</span>
+<span>{{ time }}</span>
+<span>{{ datetime }}</span>
+```
+
+## 配置说明
+
+配置定义见 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1)。
+
+顶层配置项：
 
 - `plugin_enabled`
+- `active_profile`
 - `template_profiles`
 
-每条 `template_profiles` 绑定配置包含：
+每条 `template_profiles` 模板配置包含：
 
 - `enabled`
-- `template_name`
+- `name`
+- `template_html`
 - `inject_datetime`
 - `timezone`
 - `datetime_format`
@@ -261,45 +264,33 @@ AstrBot 官方默认模板通常这样写正文：
 
 ## 多模板示例
 
-比如你有两个官方模板：
+比如你想做两套插件模板：
 
-- `base`
-- `test`
+- `default`
+- `neon`
 
-那插件里就可以配两条绑定：
+那插件里就可以配两条模板配置：
 
-- `template_name = base`
-  这一条专门给 `base` 模板使用
-- `template_name = test`
-  这一条专门给 `test` 模板使用
+- `name = default`
+- `name = neon`
 
-这样当 AstrBot 当前激活模板从 `base` 切到 `test` 时，插件也会自动切到 `test` 对应的增强配置。
+然后顶层：
 
-## 渲染流程
+- `active_profile = neon`
 
-基础调用方式：
-
-```python
-await self.html_render(template, data, options=options)
-```
-
-其中：
-
-- `template`：当前 AstrBot 已启用的官方 T2I 模板内容
-- `data`：当前模板绑定配置组生成的增强变量
-- `options`：当前模板绑定配置组的截图参数
+这样插件就会使用 `neon` 这套模板，不再看官方模板系统。
 
 ## 出问题先查什么
 
 如果你测试后发现“插件没反应”或者“Markdown 像没生效”，先按这个顺序检查：
 
-1. 当前 AstrBot 激活模板名是什么
-2. 插件里有没有同名的 `template_profiles.template_name`
-3. 这条 profile 有没有启用
-4. `render_markdown` 有没有打开
-5. 模板正文现在是 `{{ text | safe }}` 还是 `{{ content | safe }}`  
-这两种现在都可以，但如果你写成别的变量，就可能看不到结果
-6. 当前文本长度是否超过 AstrBot 当前的 T2I 触发阈值
+1. `plugin_enabled` 是否开启
+2. `active_profile` 是否填对
+3. `template_profiles` 里有没有同名且启用的配置
+4. 当前选中的那条配置里 `template_html` 是否非空
+5. `render_markdown` 有没有打开
+6. 模板正文现在是 `{{ text | safe }}` 还是 `{{ content | safe }}`
+7. 当前文本长度是否超过 AstrBot 当前的 T2I 触发阈值
 
 ## 官方对照
 
@@ -308,11 +299,10 @@ await self.html_render(template, data, options=options)
 - 官方文档支持 `html_render(template, data, options)`
 - `data` 确实是 Jinja2 渲染变量
 - AstrBot 默认 `t2i_word_threshold` 是 `150`
-- `ResultDecorateStage` 会缓存 `t2i_active_template`
 - `on_decorating_result` 钩子可以直接改结果链
-- `_conf_schema.json` 官方支持 `template_list`
+- 官方模板编辑器存在变量白名单限制，所以本插件从 `v3.0.0` 起不再依赖官方模板内容
 
-因此当前方案不是修改 Core，而是使用官方公开给插件的渲染能力和配置能力来接管当前激活模板。
+因此当前方案不是修改 Core，而是彻底改为插件自维护模板、自维护变量、自执行渲染。
 
 ## 安装
 

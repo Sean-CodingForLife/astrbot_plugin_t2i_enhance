@@ -16,7 +16,6 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 from astrbot.core.message.components import Image, Plain
-from astrbot.core.utils.t2i.template_manager import TemplateManager
 
 DEFAULT_TIMEZONE = "Asia/Shanghai"
 DEFAULT_SCREENSHOT_OPTIONS = {
@@ -195,14 +194,16 @@ def normalize_template_profiles(config: dict) -> list[dict[str, Any]]:
         if not isinstance(item, dict):
             continue
 
-        template_name = str(item.get("template_name", "")).strip()
-        if not template_name:
+        profile_name = str(item.get("name", "")).strip()
+        template_html = str(item.get("template_html", "")).strip()
+        if not profile_name or not template_html:
             continue
 
         normalized.append(
             {
-                "template_name": template_name,
+                "name": profile_name,
                 "enabled": bool(item.get("enabled", True)),
+                "template_html": template_html,
                 "inject_datetime": bool(item.get("inject_datetime", True)),
                 "timezone": str(item.get("timezone", DEFAULT_TIMEZONE)).strip()
                 or DEFAULT_TIMEZONE,
@@ -387,30 +388,26 @@ def should_render(context: Context, plugin_config: dict, event: AstrMessageEvent
 @register(
     "t2i_enhance",
     "Codex",
-    "T2I Enhance: take over AstrBot active T2I template rendering with backend-injected variables.",
-    "2.2.1",
+    "T2I Enhance: self-managed HTML templates with backend-injected variables.",
+    "3.0.0",
 )
 class T2IEnhancePlugin(Star):
     def __init__(self, context: Context, config: dict):
         super().__init__(context)
         self.config = config
-        self.template_manager = TemplateManager()
 
-    def _resolve_active_template_name(self, event: AstrMessageEvent) -> str:
-        astrbot_config = self.context.get_config(event.unified_msg_origin)
-        return str(astrbot_config.get("t2i_active_template", "base")).strip() or "base"
+    def _resolve_template_profile(self) -> dict[str, Any] | None:
+        profiles = [profile for profile in normalize_template_profiles(self.config) if profile.get("enabled", True)]
+        if not profiles:
+            return None
 
-    def _resolve_template_html(self, event: AstrMessageEvent) -> str:
-        return self.template_manager.get_template(self._resolve_active_template_name(event))
+        active_profile = str(self.config.get("active_profile", "")).strip()
+        if active_profile:
+            for profile in profiles:
+                if profile["name"] == active_profile:
+                    return profile
 
-    def _resolve_template_profile(self, event: AstrMessageEvent) -> dict[str, Any] | None:
-        active_template = self._resolve_active_template_name(event)
-        for profile in normalize_template_profiles(self.config):
-            if not profile.get("enabled", True):
-                continue
-            if profile["template_name"] == active_template:
-                return profile
-        return None
+        return profiles[0]
 
     def _build_rendered_content(self, plain_text: str, profile: dict[str, Any]) -> str:
         if profile.get("render_markdown", True):
@@ -438,7 +435,6 @@ class T2IEnhancePlugin(Star):
 
     def _build_template_data(
         self,
-        event: AstrMessageEvent,
         plain_text: str,
         rendered_content: str,
         profile: dict[str, Any],
@@ -452,7 +448,7 @@ class T2IEnhancePlugin(Star):
             "raw_text": plain_text,
             "content": rendered_content,
             "html": rendered_content,
-            "template_name": self._resolve_active_template_name(event),
+            "template_name": profile["name"],
             "bg_url": self._select_background(profile),
             "version": f"v{astrbot_version}",
         }
@@ -495,19 +491,17 @@ class T2IEnhancePlugin(Star):
         if not plain_text or leading_plain_count == 0:
             return
 
-        profile = self._resolve_template_profile(event)
+        profile = self._resolve_template_profile()
         if profile is None:
             logger.debug(
-                "[t2i_enhance] no bound profile for active template: %s",
-                self._resolve_active_template_name(event),
+                "[t2i_enhance] no enabled plugin template profile found.",
             )
             return
 
         try:
-            template_html = self._resolve_template_html(event)
+            template_html = profile["template_html"]
             rendered_content = self._build_rendered_content(plain_text, profile)
             template_data = self._build_template_data(
-                event,
                 plain_text,
                 rendered_content,
                 profile,
@@ -527,6 +521,6 @@ class T2IEnhancePlugin(Star):
         result.chain = [Image.fromFileSystem(rendered_image), *suffix_chain]
         result.use_t2i_ = False
         logger.debug(
-            "[t2i_enhance] rendered image with active template: %s",
-            self._resolve_active_template_name(event),
+            "[t2i_enhance] rendered image with plugin template: %s",
+            profile["name"],
         )
