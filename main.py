@@ -513,19 +513,52 @@ class T2IEnhancePlugin(Star):
         if mode not in BACKGROUND_SWITCH_MODES:
             mode = "random"
 
+        profile_name = profile["name"]
         if mode == "fixed":
-            return valid[0]
+            selected = valid[0]
+            logger.info(
+                "[t2i_enhance] selected background: mode=%s, profile=%s, count=%s, url=%s",
+                mode,
+                profile_name,
+                len(valid),
+                selected,
+            )
+            return selected
+
         if mode == "sequential":
             current = getattr(self, "_background_sequence_state", {})
-            profile_name = profile["name"]
             index = int(current.get(profile_name, 0)) if isinstance(current, dict) else 0
             selected = valid[index % len(valid)]
             if not isinstance(current, dict):
                 current = {}
             current[profile_name] = (index + 1) % len(valid)
             self._background_sequence_state = current
+            logger.info(
+                "[t2i_enhance] selected background: mode=%s, profile=%s, count=%s, index=%s, url=%s",
+                mode,
+                profile_name,
+                len(valid),
+                index % len(valid),
+                selected,
+            )
             return selected
-        return random.choice(valid)
+
+        current = getattr(self, "_background_random_state", {})
+        previous = current.get(profile_name) if isinstance(current, dict) else None
+        choices = [url for url in valid if url != previous]
+        selected = random.choice(choices or valid)
+        if not isinstance(current, dict):
+            current = {}
+        current[profile_name] = selected
+        self._background_random_state = current
+        logger.info(
+            "[t2i_enhance] selected background: mode=%s, profile=%s, count=%s, url=%s",
+            mode,
+            profile_name,
+            len(valid),
+            selected,
+        )
+        return selected
 
     def _build_template_data(
         self,
