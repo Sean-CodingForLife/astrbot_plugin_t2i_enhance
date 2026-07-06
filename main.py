@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from astrbot import __version__ as astrbot_version
 import bleach
 import markdown
 
@@ -13,6 +14,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 from astrbot.core.message.components import Image, Plain
+from astrbot.core.utils.t2i.template_manager import TemplateManager
 
 SEQUENCE_STATE_KEY = "template_sequence_index"
 DEFAULT_TIMEZONE = "Asia/Shanghai"
@@ -21,6 +23,8 @@ DEFAULT_SCREENSHOT_OPTIONS = {
     "full_page": True,
     "animations": "disabled",
 }
+OFFICIAL_TEMPLATE_SOURCE = "official_template_name"
+INLINE_TEMPLATE_SOURCE = "inline_template_html"
 
 
 def normalize_t2i_threshold(value: object) -> int:
@@ -120,7 +124,14 @@ def normalize_template_candidates(config: dict) -> list[dict[str, Any]]:
         normalized.append(
             {
                 "name": str(item.get("name", "")).strip() or "未命名模板",
+                "template_source": str(
+                    item.get("template_source", INLINE_TEMPLATE_SOURCE),
+                ).strip()
+                or INLINE_TEMPLATE_SOURCE,
                 "template_html": template_html,
+                "official_template_name": str(
+                    item.get("official_template_name", ""),
+                ).strip(),
                 "render_markdown": bool(item.get("render_markdown", True)),
                 "sanitize_html_input": bool(item.get("sanitize_html_input", True)),
                 "title": str(item.get("title", "")).strip(),
@@ -207,6 +218,7 @@ class T2IEnhancePlugin(Star):
     def __init__(self, context: Context, config: dict):
         super().__init__(context)
         self.config = config
+        self.template_manager = TemplateManager()
 
     async def _select_template(self, templates: list[dict[str, Any]]) -> dict[str, Any]:
         mode = str(self.config.get("template_switch_mode", "fixed")).strip().lower()
@@ -240,6 +252,19 @@ class T2IEnhancePlugin(Star):
 
         return plain_text
 
+    def _resolve_template_html(self, template_item: dict[str, Any]) -> str:
+        source = template_item.get("template_source", INLINE_TEMPLATE_SOURCE)
+        if source == OFFICIAL_TEMPLATE_SOURCE:
+            official_name = template_item.get("official_template_name", "")
+            if not official_name:
+                raise ValueError("official_template_name is required")
+            return self.template_manager.get_template(official_name)
+
+        template_html = template_item.get("template_html", "")
+        if not template_html:
+            raise ValueError("template_html is required")
+        return template_html
+
     def _build_template_data(
         self,
         plain_text: str,
@@ -256,6 +281,7 @@ class T2IEnhancePlugin(Star):
             "html": rendered_content,
             "template_name": template_item.get("name", ""),
             "bg_url": background_url,
+            "version": f"v{astrbot_version}",
         }
 
         if self.config.get("inject_datetime", True):
@@ -315,6 +341,7 @@ class T2IEnhancePlugin(Star):
 
         try:
             template_item = await self._select_template(templates)
+            template_html = self._resolve_template_html(template_item)
             rendered_content = self._build_rendered_content(plain_text, template_item)
             template_data = self._build_template_data(
                 plain_text=plain_text,
@@ -322,7 +349,7 @@ class T2IEnhancePlugin(Star):
                 rendered_content=rendered_content,
             )
             rendered_image = await self.html_render(
-                template_item["template_html"],
+                template_html,
                 template_data,
                 return_url=False,
                 options=parse_screenshot_options(

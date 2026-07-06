@@ -181,6 +181,21 @@
             "type": "string",
             "default": "默认增强模板"
           },
+          "template_source": {
+            "description": "模板来源。",
+            "type": "string",
+            "options": [
+              "inline_template_html",
+              "official_template_name"
+            ],
+            "default": "inline_template_html"
+          },
+          "official_template_name": {
+            "description": "官方 T2I 模板名。",
+            "type": "string",
+            "hint": "当模板来源为 official_template_name 时生效，例如 base、astrbot_vitepress 或你在官方自定义 T2I 页面里创建的模板名。",
+            "default": ""
+          },
           "title": {
             "description": "标题变量默认值。",
             "type": "string",
@@ -232,6 +247,8 @@
         "__template_key": "full_html_template",
         "enabled": true,
         "name": "默认增强模板",
+        "template_source": "inline_template_html",
+        "official_template_name": "",
         "title": "文本渲染结果",
         "subtitle": "由插件后端调用 html_render 生成",
         "footer_left": "Rendered by T2I Enhance",

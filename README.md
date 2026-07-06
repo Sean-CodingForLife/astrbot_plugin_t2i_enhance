@@ -38,6 +38,7 @@ await self.html_render(template, data, options=options)
 
 - 自主接管符合条件的 AstrBot T2I 渲染
 - 候选模板切换
+- 复用官方 T2I 模板内容
 - 后端变量注入
 - 背景图变量注入
 - 日期时间变量注入
@@ -108,6 +109,8 @@ await self.html_render(template, data, options=options)
 
 - `enabled`
 - `name`
+- `template_source`
+- `official_template_name`
 - `title`
 - `subtitle`
 - `footer_left`
@@ -118,6 +121,16 @@ await self.html_render(template, data, options=options)
 - `template_html`
 
 ## 模板示例
+
+`template_source` 有两种：
+
+- `inline_template_html`
+  - 直接使用插件配置里的 `template_html`
+- `official_template_name`
+  - 读取 AstrBot 官方 T2I 模板内容
+  - 例如 `base`、`astrbot_vitepress`，或者你在“自定义文转图 HTML 模板”页面里保存过的模板名
+
+这意味着你可以继续在官方模板编辑器里维护 HTML，但渲染时仍由插件调用 `html_render(template, data, options)`，从而拿到插件自己的增强变量。
 
 正文通常这样输出：
 
