@@ -26,6 +26,7 @@ DEFAULT_SCREENSHOT_OPTIONS = {
 }
 RESERVED_TEMPLATE_VARS = {
     "text",
+    "raw_text",
     "content",
     "html",
     "template_name",
@@ -387,7 +388,7 @@ def should_render(context: Context, plugin_config: dict, event: AstrMessageEvent
     "t2i_enhance",
     "Codex",
     "T2I Enhance: take over AstrBot active T2I template rendering with backend-injected variables.",
-    "2.2.0",
+    "2.2.1",
 )
 class T2IEnhancePlugin(Star):
     def __init__(self, context: Context, config: dict):
@@ -446,7 +447,9 @@ class T2IEnhancePlugin(Star):
         custom_vars = parse_custom_vars(profile.get("custom_vars_json", "{}"))
 
         data: dict[str, Any] = {
-            "text": plain_text,
+            # Keep official default templates usable by writing the enhanced body back to text.
+            "text": rendered_content,
+            "raw_text": plain_text,
             "content": rendered_content,
             "html": rendered_content,
             "template_name": self._resolve_active_template_name(event),
