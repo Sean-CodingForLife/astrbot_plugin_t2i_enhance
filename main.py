@@ -116,13 +116,41 @@ DEFAULT_ALLOWED_TAGS = [
     "tr",
     "ul",
 ]
+BACKGROUND_SWITCH_MODES = {"random", "sequential", "fixed"}
+TEMPLATE_SECURITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    (
+        "dunder_chain",
+        re.compile(
+            r"__\s*(class|globals|init|mro|base|bases|subclasses|reduce|getitem|builtins|import|self|func|code|reduce_ex)__",
+        ),
+    ),
+    (
+        "dangerous_builtins",
+        re.compile(
+            r"\b(import\s+(?!url)|os\.\w+|subprocess\.|\.popen\(|eval\(|exec\()",
+        ),
+    ),
+    ("flask_context", re.compile(r"\{\{.*?\b(config|request|session|g)\b.*?\}\}")),
+    ("script_tag", re.compile(r"<\s*script\b", re.IGNORECASE)),
+    ("javascript_url", re.compile(r"javascript\s*:", re.IGNORECASE)),
+]
 
 
 def normalize_t2i_threshold(value: object) -> int:
     try:
-        return int(value)
+        return max(int(value), 50)
     except (TypeError, ValueError):
         return 150
+
+
+def validate_template_html(content: str) -> None:
+    for label, pattern in TEMPLATE_SECURITY_PATTERNS:
+        if pattern.search(content):
+            logger.warning(
+                "[t2i_enhance] blocked unsafe template content by rule: %s",
+                label,
+            )
+            raise ValueError(f"unsafe template content ({label})")
 
 
 def parse_json_config(raw: str, fallback: Any, label: str) -> Any:
@@ -199,6 +227,15 @@ def normalize_template_profiles(config: dict) -> list[dict[str, Any]]:
         if not profile_name or not template_html:
             continue
 
+        try:
+            validate_template_html(template_html)
+        except ValueError:
+            logger.warning(
+                "[t2i_enhance] ignore invalid template profile: %s",
+                profile_name or "<unnamed>",
+            )
+            continue
+
         normalized.append(
             {
                 "name": profile_name,
@@ -215,6 +252,10 @@ def normalize_template_profiles(config: dict) -> list[dict[str, Any]]:
                 "render_markdown": bool(item.get("render_markdown", True)),
                 "sanitize_html_input": bool(item.get("sanitize_html_input", True)),
                 "background_candidates": item.get("background_candidates", []),
+                "background_switch_mode": str(
+                    item.get("background_switch_mode", "random"),
+                ).strip().lower()
+                or "random",
                 "custom_vars_json": str(item.get("custom_vars_json", "{}")),
                 "screenshot_options_json": str(
                     item.get("screenshot_options_json", "{}"),
@@ -389,7 +430,7 @@ def should_render(context: Context, plugin_config: dict, event: AstrMessageEvent
     "t2i_enhance",
     "Codex",
     "T2I Enhance: self-managed HTML templates with backend-injected variables.",
-    "3.0.0",
+    "3.0.1",
 )
 class T2IEnhancePlugin(Star):
     def __init__(self, context: Context, config: dict):
@@ -431,7 +472,26 @@ class T2IEnhancePlugin(Star):
                 logger.warning("[t2i_enhance] ignore background with disallowed protocol: %s", url)
                 continue
             valid.append(url)
-        return random.choice(valid) if valid else ""
+        if not valid:
+            return ""
+
+        mode = str(profile.get("background_switch_mode", "random")).strip().lower()
+        if mode not in BACKGROUND_SWITCH_MODES:
+            mode = "random"
+
+        if mode == "fixed":
+            return valid[0]
+        if mode == "sequential":
+            current = getattr(self, "_background_sequence_state", {})
+            profile_name = profile["name"]
+            index = int(current.get(profile_name, 0)) if isinstance(current, dict) else 0
+            selected = valid[index % len(valid)]
+            if not isinstance(current, dict):
+                current = {}
+            current[profile_name] = (index + 1) % len(valid)
+            self._background_sequence_state = current
+            return selected
+        return random.choice(valid)
 
     def _build_template_data(
         self,

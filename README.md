@@ -144,6 +144,19 @@ url("{{ bg_url }}")
 
 不要自己在 `custom_vars_json` 里重复定义 `bg_url`。
 
+### 4. 你配置了背景图，但没设置切换模式
+
+现在背景图候选和切换方式是分开的：
+
+- `background_candidates`：候选背景图 URL 列表
+- `background_switch_mode`：切换模式
+
+可选模式：
+
+- `random`：每次渲染随机选一张
+- `sequential`：按列表顺序轮换
+- `fixed`：始终使用第一张
+
 ## 变量说明
 
 插件会注入这些变量：
@@ -224,6 +237,14 @@ background:
   {% if bg_url %}, url("{{ bg_url }}") center / cover no-repeat{% endif %};
 ```
 
+### 背景图切换模式
+
+如果你配置了多张背景图：
+
+- `background_switch_mode = random`：适合做随机视觉变化
+- `background_switch_mode = sequential`：适合按顺序轮播模板背景
+- `background_switch_mode = fixed`：适合长期固定一张主背景
+
 ### 时间变量写法
 
 ```html
@@ -255,12 +276,27 @@ background:
 - `render_markdown`
 - `sanitize_html_input`
 - `background_candidates`
+- `background_switch_mode`
 - `custom_vars_json`
 - `screenshot_options_json`
 - `markdown_extensions`
 - `allowed_protocols`
 - `allowed_tags`
 - `allowed_attributes_json`
+
+## 模板安全校验
+
+插件现在会在读取模板配置时做最小安全校验。
+
+命中以下危险模式的模板会被直接跳过，不参与渲染：
+
+- Jinja2 dunder 链访问，如 `__class__`
+- 明显危险调用，如 `os.xxx`、`subprocess`、`.popen(`、`eval(`、`exec(`
+- Flask 上下文对象，如 `config`、`request`、`session`、`g`
+- `<script>` 标签
+- `javascript:` URL
+
+这不是为了限制正常的 HTML/CSS 排版，而是为了防止把明显危险的模板内容直接送进渲染流程。
 
 ## 多模板示例
 
@@ -291,6 +327,8 @@ background:
 5. `render_markdown` 有没有打开
 6. 模板正文现在是 `{{ text | safe }}` 还是 `{{ content | safe }}`
 7. 当前文本长度是否超过 AstrBot 当前的 T2I 触发阈值
+8. `background_candidates` 和 `background_switch_mode` 是否配置正确
+9. 模板内容是否触发了插件的最小安全校验
 
 ## 官方对照
 
@@ -299,6 +337,7 @@ background:
 - 官方文档支持 `html_render(template, data, options)`
 - `data` 确实是 Jinja2 渲染变量
 - AstrBot 默认 `t2i_word_threshold` 是 `150`
+- AstrBot Core 会把 `t2i_word_threshold` 最低保护到 `50`
 - `on_decorating_result` 钩子可以直接改结果链
 - 官方模板编辑器存在变量白名单限制，所以本插件从 `v3.0.0` 起不再依赖官方模板内容
 

@@ -91,8 +91,19 @@
           "background_candidates": {
             "description": "背景图候选 URL 列表。",
             "type": "list",
-            "hint": "如果模板中使用 {{ bg_url }}，插件会从这里随机选择一个值注入。",
+            "hint": "如果模板中使用 {{ bg_url }}，插件会从这里按切换模式选择一个值注入。",
             "default": []
+          },
+          "background_switch_mode": {
+            "description": "背景图切换模式。",
+            "type": "string",
+            "hint": "random 为随机，sequential 为按列表顺序轮换，fixed 为始终使用第一张。",
+            "options": [
+              "random",
+              "sequential",
+              "fixed"
+            ],
+            "default": "random"
           },
           "custom_vars_json": {
             "description": "注入到模板中的自定义变量。",
@@ -201,6 +212,7 @@
         "render_markdown": true,
         "sanitize_html_input": true,
         "background_candidates": [],
+        "background_switch_mode": "random",
         "custom_vars_json": "{\n  \"site_name\": \"AstrBot\",\n  \"theme_name\": \"T2I Enhance\"\n}",
         "screenshot_options_json": "{\n  \"type\": \"png\",\n  \"full_page\": true,\n  \"animations\": \"disabled\"\n}",
         "markdown_extensions": [

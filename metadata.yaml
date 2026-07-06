@@ -1,9 +1,9 @@
 name: t2i_enhance
 display_name: T2I Enhance
-short_desc: 插件自维护 HTML 模板和增强变量，不再依赖任何官方模板内容。
-desc: 插件会使用自己维护的 template_profiles 模板配置，自主调用 html_render(HTML, data, options) 渲染图片，为模板注入日期时间、背景图、自定义变量以及 HTML/Markdown 增强结果，并彻底取消对官方模板内容的读取和绑定。
-help: 适用于需要完全绕开官方模板变量白名单限制、由插件自己掌控 HTML 模板、变量注入和渲染行为的场景。插件不改 AstrBot Core，只保留 T2I 开关和阈值作为触发条件。
-version: v3.0.0
+short_desc: 插件自维护 HTML 模板和增强变量，支持多背景图切换，不再依赖任何官方模板内容。
+desc: 插件会使用自己维护的 template_profiles 模板配置，自主调用 html_render(HTML, data, options) 渲染图片，为模板注入日期时间、背景图、自定义变量以及 HTML/Markdown 增强结果，支持多背景图固定、随机、顺序切换，并彻底取消对官方模板内容的读取和绑定。
+help: 适用于需要完全绕开官方模板变量白名单限制、由插件自己掌控 HTML 模板、变量注入和渲染行为的场景。插件不改 AstrBot Core，只保留 T2I 开关和阈值作为触发条件；模板内容会做最小安全校验。
+version: v3.0.1
 astrbot_version: ">=4.26,<5"
 support_platforms:
   - aiocqhttp
