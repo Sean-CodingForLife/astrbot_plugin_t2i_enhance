@@ -1,36 +1,9 @@
 {
   "plugin_enabled": {
-    "description": "是否启用 T2I Enhance 自定义渲染流程。",
+    "description": "是否启用 T2I Enhance 接管渲染。",
     "type": "bool",
-    "hint": "关闭后，插件不会接管 AstrBot 的文本转图片结果。",
+    "hint": "开启后，插件会直接接管当前 AstrBot 已启用的 T2I 模板渲染流程。",
     "default": true
-  },
-  "respect_official_excluded_templates": {
-    "description": "是否跳过官方内置模板和排除模板。",
-    "type": "bool",
-    "hint": "开启后，当当前 AstrBot T2I 模板命中排除列表时，本插件不会接管渲染。",
-    "default": true
-  },
-  "excluded_templates": {
-    "description": "不由本插件接管的 AstrBot T2I 模板名列表。",
-    "type": "list",
-    "hint": "通常保留官方已自带 Markdown 能力的模板。",
-    "default": [
-      "base",
-      "astrbot_vitepress",
-      "astrbot_powershell"
-    ]
-  },
-  "template_switch_mode": {
-    "description": "模板切换方式。",
-    "type": "string",
-    "hint": "fixed 使用第一个候选模板；random 随机切换；sequential 按顺序轮换并持久记录位置。",
-    "options": [
-      "fixed",
-      "random",
-      "sequential"
-    ],
-    "default": "fixed"
   },
   "inject_datetime": {
     "description": "是否注入当前日期和时间变量。",
@@ -62,6 +35,24 @@
     "hint": "使用 Python strftime 格式，例如 %H:%M:%S。",
     "default": "%H:%M:%S"
   },
+  "render_markdown": {
+    "description": "是否先把原始文本渲染为 Markdown HTML。",
+    "type": "bool",
+    "hint": "开启后，会先把前导文本转换为 Markdown HTML，再注入到模板里的 content/html。",
+    "default": true
+  },
+  "sanitize_html_input": {
+    "description": "当 render_markdown 为 false 时，是否继续清洗输入 HTML。",
+    "type": "bool",
+    "hint": "关闭后，原始 HTML 会直接进入模板变量。",
+    "default": true
+  },
+  "background_candidates": {
+    "description": "背景图候选 URL 列表。",
+    "type": "list",
+    "hint": "如果模板中使用 {{ bg_url }}，插件会从这里随机选择一个值注入。",
+    "default": []
+  },
   "custom_vars_json": {
     "description": "注入到模板中的自定义变量。",
     "type": "text",
@@ -69,12 +60,6 @@
     "editor_mode": true,
     "editor_language": "json",
     "default": "{\n  \"site_name\": \"AstrBot\",\n  \"theme_name\": \"T2I Enhance\"\n}"
-  },
-  "global_background_candidates": {
-    "description": "全局背景图候选 URL 列表。",
-    "type": "list",
-    "hint": "当模板自身没有配置背景图候选时，会从这里随机挑选一张并注入 bg_url。",
-    "default": []
   },
   "screenshot_options_json": {
     "description": "html_render 截图选项。",
@@ -157,107 +142,5 @@
     "editor_mode": true,
     "editor_language": "json",
     "default": "{\n  \"a\": [\"href\", \"title\"],\n  \"img\": [\"src\", \"alt\", \"title\"],\n  \"code\": [\"class\"],\n  \"pre\": [\"class\"],\n  \"span\": [\"class\"],\n  \"div\": [\"class\"],\n  \"th\": [\"align\"],\n  \"td\": [\"align\"]\n}"
-  },
-  "template_candidates": {
-    "description": "候选模板列表。",
-    "type": "template_list",
-    "hint": "可配置多个模板，并配合 fixed/random/sequential 切换方式使用。",
-    "templates": {
-      "full_html_template": {
-        "description": "完整 HTML 模板。",
-        "items": {
-          "__template_key": {
-            "type": "string",
-            "default": "full_html_template",
-            "invisible": true
-          },
-          "enabled": {
-            "description": "是否启用该模板。",
-            "type": "bool",
-            "default": true
-          },
-          "name": {
-            "description": "模板名称。",
-            "type": "string",
-            "default": "默认增强模板"
-          },
-          "template_source": {
-            "description": "模板来源。",
-            "type": "string",
-            "options": [
-              "inline_template_html",
-              "official_template_name"
-            ],
-            "default": "inline_template_html"
-          },
-          "official_template_name": {
-            "description": "官方 T2I 模板名。",
-            "type": "string",
-            "hint": "当模板来源为 official_template_name 时生效，例如 base、astrbot_vitepress 或你在官方自定义 T2I 页面里创建的模板名。",
-            "default": ""
-          },
-          "title": {
-            "description": "标题变量默认值。",
-            "type": "string",
-            "default": "文本渲染结果"
-          },
-          "subtitle": {
-            "description": "副标题变量默认值。",
-            "type": "string",
-            "default": "由插件后端调用 html_render 生成"
-          },
-          "footer_left": {
-            "description": "页脚左侧文本。",
-            "type": "string",
-            "default": "Rendered by T2I Enhance"
-          },
-          "footer_right": {
-            "description": "页脚右侧文本。",
-            "type": "string",
-            "default": ""
-          },
-          "render_markdown": {
-            "description": "是否先把原始文本渲染为 Markdown HTML。",
-            "type": "bool",
-            "default": true
-          },
-          "sanitize_html_input": {
-            "description": "当 render_markdown 为 false 时，是否继续清洗输入 HTML。",
-            "type": "bool",
-            "default": true
-          },
-          "background_candidates": {
-            "description": "该模板专属背景图候选 URL 列表。",
-            "type": "list",
-            "default": []
-          },
-          "template_html": {
-            "description": "完整 HTML 模板内容。",
-            "type": "text",
-            "hint": "可直接使用 text、content、html、bg_url、date、time、datetime、自定义变量等。",
-            "editor_mode": true,
-            "editor_language": "html",
-            "default": "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <style>\n    :root {\n      color-scheme: light;\n      --page-width: 960px;\n      --page-padding: 44px;\n      --card-radius: 28px;\n      --shadow: 0 20px 60px rgba(15, 23, 42, 0.18);\n      --text-color: #172033;\n      --muted-color: rgba(23, 32, 51, 0.64);\n      --border-color: rgba(15, 23, 42, 0.08);\n      --surface: rgba(255, 255, 255, 0.88);\n      --body-bg: linear-gradient(135deg, #edf2ff 0%, #fef7ed 100%);\n      --hero-bg: {% if bg_url %}url('{{ bg_url }}'){% else %}linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%){% endif %};\n    }\n    * { box-sizing: border-box; }\n    html, body { margin: 0; padding: 0; }\n    body {\n      min-width: var(--page-width);\n      background: var(--body-bg);\n      padding: 32px;\n      font-family: \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans SC\", sans-serif;\n      color: var(--text-color);\n    }\n    .frame {\n      width: var(--page-width);\n      margin: 0 auto;\n      background: var(--surface);\n      border: 1px solid var(--border-color);\n      border-radius: var(--card-radius);\n      box-shadow: var(--shadow);\n      overflow: hidden;\n      backdrop-filter: blur(14px);\n    }\n    .hero {\n      position: relative;\n      min-height: 220px;\n      padding: var(--page-padding);\n      background-image: var(--hero-bg);\n      background-size: cover;\n      background-position: center;\n      isolation: isolate;\n    }\n    .hero::after {\n      content: \"\";\n      position: absolute;\n      inset: 0;\n      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.4));\n      z-index: -1;\n    }\n    .badge {\n      display: inline-flex;\n      align-items: center;\n      gap: 10px;\n      padding: 8px 14px;\n      border-radius: 999px;\n      background: rgba(255, 255, 255, 0.72);\n      border: 1px solid rgba(255, 255, 255, 0.5);\n      font-size: 14px;\n      color: var(--muted-color);\n    }\n    .title {\n      margin: 18px 0 8px;\n      font-size: 44px;\n      font-weight: 700;\n      line-height: 1.15;\n      letter-spacing: -0.03em;\n    }\n    .subtitle {\n      margin: 0;\n      font-size: 18px;\n      line-height: 1.7;\n      color: var(--muted-color);\n    }\n    .content {\n      padding: 36px var(--page-padding) 42px;\n      font-size: 20px;\n      line-height: 1.8;\n    }\n    .content > :first-child { margin-top: 0; }\n    .content > :last-child { margin-bottom: 0; }\n    .content h1, .content h2, .content h3, .content h4, .content h5, .content h6 {\n      margin: 1.2em 0 0.5em;\n      line-height: 1.3;\n    }\n    .content p, .content ul, .content ol, .content blockquote, .content pre, .content table {\n      margin: 0.8em 0;\n    }\n    .content ul, .content ol { padding-left: 1.4em; }\n    .content blockquote {\n      margin-left: 0;\n      padding: 14px 18px;\n      border-left: 4px solid #94a3b8;\n      background: rgba(148, 163, 184, 0.12);\n      border-radius: 16px;\n      color: #334155;\n    }\n    .content code {\n      padding: 0.15em 0.4em;\n      border-radius: 8px;\n      background: rgba(15, 23, 42, 0.08);\n      font-family: \"Cascadia Code\", \"JetBrains Mono\", monospace;\n      font-size: 0.9em;\n    }\n    .content pre {\n      overflow: auto;\n      padding: 18px 20px;\n      border-radius: 18px;\n      background: #0f172a;\n      color: #e2e8f0;\n    }\n    .content pre code {\n      padding: 0;\n      background: transparent;\n      color: inherit;\n    }\n    .content img { max-width: 100%; border-radius: 16px; }\n    .content table {\n      width: 100%;\n      border-collapse: collapse;\n      overflow: hidden;\n      border-radius: 16px;\n      border: 1px solid rgba(15, 23, 42, 0.08);\n    }\n    .content th,\n    .content td {\n      padding: 12px 14px;\n      border-bottom: 1px solid rgba(15, 23, 42, 0.08);\n      text-align: left;\n    }\n    .footer {\n      display: flex;\n      justify-content: space-between;\n      gap: 16px;\n      padding: 0 var(--page-padding) 34px;\n      color: var(--muted-color);\n      font-size: 15px;\n    }\n  </style>\n</head>\n<body>\n  <main class=\"frame\">\n    <section class=\"hero\">\n      <div class=\"badge\">\n        <span>{{ template_name or \"T2I Enhance\" }}</span>\n        {% if date %}<span>{{ date }}</span>{% endif %}\n        {% if time %}<span>{{ time }}</span>{% endif %}\n      </div>\n      <h1 class=\"title\">{{ title or \"文本渲染结果\" }}</h1>\n      {% if subtitle %}<p class=\"subtitle\">{{ subtitle }}</p>{% endif %}\n    </section>\n    <section class=\"content\">\n      {{ content | safe }}\n    </section>\n    <footer class=\"footer\">\n      <span>{{ footer_left or \"Rendered by T2I Enhance\" }}</span>\n      <span>{{ footer_right or datetime }}</span>\n    </footer>\n  </main>\n</body>\n</html>"
-          }
-        }
-      }
-    },
-    "default": [
-      {
-        "__template_key": "full_html_template",
-        "enabled": true,
-        "name": "默认增强模板",
-        "template_source": "inline_template_html",
-        "official_template_name": "",
-        "title": "文本渲染结果",
-        "subtitle": "由插件后端调用 html_render 生成",
-        "footer_left": "Rendered by T2I Enhance",
-        "footer_right": "",
-        "render_markdown": true,
-        "sanitize_html_input": true,
-        "background_candidates": [],
-        "template_html": "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <style>\n    :root {\n      color-scheme: light;\n      --page-width: 960px;\n      --page-padding: 44px;\n      --card-radius: 28px;\n      --shadow: 0 20px 60px rgba(15, 23, 42, 0.18);\n      --text-color: #172033;\n      --muted-color: rgba(23, 32, 51, 0.64);\n      --border-color: rgba(15, 23, 42, 0.08);\n      --surface: rgba(255, 255, 255, 0.88);\n      --body-bg: linear-gradient(135deg, #edf2ff 0%, #fef7ed 100%);\n      --hero-bg: {% if bg_url %}url('{{ bg_url }}'){% else %}linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%){% endif %};\n    }\n    * { box-sizing: border-box; }\n    html, body { margin: 0; padding: 0; }\n    body {\n      min-width: var(--page-width);\n      background: var(--body-bg);\n      padding: 32px;\n      font-family: \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans SC\", sans-serif;\n      color: var(--text-color);\n    }\n    .frame {\n      width: var(--page-width);\n      margin: 0 auto;\n      background: var(--surface);\n      border: 1px solid var(--border-color);\n      border-radius: var(--card-radius);\n      box-shadow: var(--shadow);\n      overflow: hidden;\n      backdrop-filter: blur(14px);\n    }\n    .hero {\n      position: relative;\n      min-height: 220px;\n      padding: var(--page-padding);\n      background-image: var(--hero-bg);\n      background-size: cover;\n      background-position: center;\n      isolation: isolate;\n    }\n    .hero::after {\n      content: \"\";\n      position: absolute;\n      inset: 0;\n      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.4));\n      z-index: -1;\n    }\n    .badge {\n      display: inline-flex;\n      align-items: center;\n      gap: 10px;\n      padding: 8px 14px;\n      border-radius: 999px;\n      background: rgba(255, 255, 255, 0.72);\n      border: 1px solid rgba(255, 255, 255, 0.5);\n      font-size: 14px;\n      color: var(--muted-color);\n    }\n    .title {\n      margin: 18px 0 8px;\n      font-size: 44px;\n      font-weight: 700;\n      line-height: 1.15;\n      letter-spacing: -0.03em;\n    }\n    .subtitle {\n      margin: 0;\n      font-size: 18px;\n      line-height: 1.7;\n      color: var(--muted-color);\n    }\n    .content {\n      padding: 36px var(--page-padding) 42px;\n      font-size: 20px;\n      line-height: 1.8;\n    }\n    .content > :first-child { margin-top: 0; }\n    .content > :last-child { margin-bottom: 0; }\n    .content h1, .content h2, .content h3, .content h4, .content h5, .content h6 {\n      margin: 1.2em 0 0.5em;\n      line-height: 1.3;\n    }\n    .content p, .content ul, .content ol, .content blockquote, .content pre, .content table {\n      margin: 0.8em 0;\n    }\n    .content ul, .content ol { padding-left: 1.4em; }\n    .content blockquote {\n      margin-left: 0;\n      padding: 14px 18px;\n      border-left: 4px solid #94a3b8;\n      background: rgba(148, 163, 184, 0.12);\n      border-radius: 16px;\n      color: #334155;\n    }\n    .content code {\n      padding: 0.15em 0.4em;\n      border-radius: 8px;\n      background: rgba(15, 23, 42, 0.08);\n      font-family: \"Cascadia Code\", \"JetBrains Mono\", monospace;\n      font-size: 0.9em;\n    }\n    .content pre {\n      overflow: auto;\n      padding: 18px 20px;\n      border-radius: 18px;\n      background: #0f172a;\n      color: #e2e8f0;\n    }\n    .content pre code {\n      padding: 0;\n      background: transparent;\n      color: inherit;\n    }\n    .content img { max-width: 100%; border-radius: 16px; }\n    .content table {\n      width: 100%;\n      border-collapse: collapse;\n      overflow: hidden;\n      border-radius: 16px;\n      border: 1px solid rgba(15, 23, 42, 0.08);\n    }\n    .content th,\n    .content td {\n      padding: 12px 14px;\n      border-bottom: 1px solid rgba(15, 23, 42, 0.08);\n      text-align: left;\n    }\n    .footer {\n      display: flex;\n      justify-content: space-between;\n      gap: 16px;\n      padding: 0 var(--page-padding) 34px;\n      color: var(--muted-color);\n      font-size: 15px;\n    }\n  </style>\n</head>\n<body>\n  <main class=\"frame\">\n    <section class=\"hero\">\n      <div class=\"badge\">\n        <span>{{ template_name or \"T2I Enhance\" }}</span>\n        {% if date %}<span>{{ date }}</span>{% endif %}\n        {% if time %}<span>{{ time }}</span>{% endif %}\n      </div>\n      <h1 class=\"title\">{{ title or \"文本渲染结果\" }}</h1>\n      {% if subtitle %}<p class=\"subtitle\">{{ subtitle }}</p>{% endif %}\n    </section>\n    <section class=\"content\">\n      {{ content | safe }}\n    </section>\n    <footer class=\"footer\">\n      <span>{{ footer_left or \"Rendered by T2I Enhance\" }}</span>\n      <span>{{ footer_right or datetime }}</span>\n    </footer>\n  </main>\n</body>\n</html>"
-      }
-    ]
   }
 }

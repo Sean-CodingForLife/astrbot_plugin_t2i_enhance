@@ -1,22 +1,23 @@
 # T2I Enhance
 
-> 基于 `html_render(template, data, options)` 的 AstrBot T2I 增强插件。
+> 插件启动后直接接管当前 AstrBot 已启用的 T2I 模板，并通过 `html_render(template, data, options)` 注入增强变量。
 
 ![T2I Enhance Icon](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/icon.svg)
 
 ## 简介
 
-`T2I Enhance` 是一套完整的插件侧 HTML 渲染架构，不依赖旧式“改写文本后再交给 Core 猜怎么处理”的做法。
+`T2I Enhance` 不再区分“插件模板”和“官方模板来源”。
 
-插件会在命中 AstrBot T2I 条件后：
+现在的工作方式只有一条：
 
-1. 提取前导 `Plain` 文本
-2. 选择模板
-3. 构造模板变量 `data`
-4. 调用 `self.html_render(template, data, options)`
-5. 将结果直接替换为图片消息
+1. AstrBot 里先选好你当前正在使用的 T2I 模板
+2. 插件在结果装饰阶段接管渲染
+3. 插件读取当前激活的官方 T2I 模板内容
+4. 插件构造增强后的 `data`
+5. 插件调用 `html_render(template, data, options)`
+6. 插件直接把结果替换成图片
 
-这个插件的唯一核心就是：**用插件后端直接驱动 HTML 模板渲染。**
+也就是说，**模板管理仍然在 AstrBot 原来的 T2I 模板系统里，增强渲染能力交给插件。**
 
 ## 架构
 
@@ -28,17 +29,13 @@ await self.html_render(template, data, options=options)
 
 其中：
 
-- `template`: 完整 HTML 模板
-- `data`: 后端注入的模板变量
+- `template`: 当前 AstrBot 已启用的 T2I 模板内容
+- `data`: 插件后端注入的增强变量
 - `options`: 截图参数
-
-插件不是只传一个 `text`，而是自己构造完整变量集，再把渲染结果直接回填到消息链。
 
 ## 核心能力
 
-- 自主接管符合条件的 AstrBot T2I 渲染
-- 候选模板切换
-- 复用官方 T2I 模板内容
+- 自动接管当前 AstrBot 已启用模板
 - 后端变量注入
 - 背景图变量注入
 - 日期时间变量注入
@@ -46,14 +43,6 @@ await self.html_render(template, data, options=options)
 - Markdown 转安全 HTML
 - 原始 HTML 清洗
 - 截图参数透传
-
-## 模板切换
-
-支持三种模板切换模式：
-
-- `fixed`: 固定使用第一个启用模板
-- `random`: 每次随机选择
-- `sequential`: 按顺序轮换，并持久化记录当前位置
 
 ## 模板变量
 
@@ -76,61 +65,45 @@ await self.html_render(template, data, options=options)
 - `minute`
 - `second`
 - `weekday`
+- `version`
 
 `custom_vars_json` 中的键值也会一起注入。
 
-## 配置
+## 现在怎么用
+
+现在不需要在插件里再选一次官方模板名。
+
+你只需要：
+
+1. 在 AstrBot 设置里选好当前 T2I 模板
+2. 在官方“自定义文转图 HTML 模板”页面里编辑那个模板
+3. 在插件里只配置增强相关内容
+
+插件会自动读取当前激活模板并接管渲染。
+
+## 插件配置
 
 配置定义见 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1)。
 
 主要配置项：
 
 - `plugin_enabled`
-- `respect_official_excluded_templates`
-- `excluded_templates`
-- `template_switch_mode`
 - `inject_datetime`
 - `timezone`
 - `datetime_format`
 - `date_format`
 - `time_format`
+- `render_markdown`
+- `sanitize_html_input`
+- `background_candidates`
 - `custom_vars_json`
-- `global_background_candidates`
 - `screenshot_options_json`
 - `markdown_extensions`
 - `allowed_protocols`
 - `allowed_tags`
 - `allowed_attributes_json`
-- `template_candidates`
 
-## 模板候选
-
-每个候选模板支持：
-
-- `enabled`
-- `name`
-- `template_source`
-- `official_template_name`
-- `title`
-- `subtitle`
-- `footer_left`
-- `footer_right`
-- `render_markdown`
-- `sanitize_html_input`
-- `background_candidates`
-- `template_html`
-
-## 模板示例
-
-`template_source` 有两种：
-
-- `inline_template_html`
-  - 直接使用插件配置里的 `template_html`
-- `official_template_name`
-  - 读取 AstrBot 官方 T2I 模板内容
-  - 例如 `base`、`astrbot_vitepress`，或者你在“自定义文转图 HTML 模板”页面里保存过的模板名
-
-这意味着你可以继续在官方模板编辑器里维护 HTML，但渲染时仍由插件调用 `html_render(template, data, options)`，从而拿到插件自己的增强变量。
+## 模板里该怎么写
 
 正文通常这样输出：
 
@@ -154,6 +127,22 @@ await self.html_render(template, data, options=options)
 <span>{{ datetime }}</span>
 ```
 
+如果你还要自定义变量，例如：
+
+```json
+{
+  "site_name": "AstrBot",
+  "card_title": "今日简报"
+}
+```
+
+那模板里就可以直接写：
+
+```html
+<h1>{{ card_title }}</h1>
+<p>{{ site_name }}</p>
+```
+
 ## 官方对照
 
 本插件当前实现对照了 AstrBot 官方文档和源码，关键点如下：
@@ -161,11 +150,10 @@ await self.html_render(template, data, options=options)
 - 官方文档支持 `html_render(template, data, options)`
 - `data` 确实是 Jinja2 渲染变量
 - AstrBot 默认 `t2i_word_threshold` 是 `150`
-- Core 会把阈值最小保护到 `50`
 - `ResultDecorateStage` 会缓存 `t2i_active_template`
 - `on_decorating_result` 钩子可以直接改结果链
 
-所以动态模板、动态变量、动态背景图这类需求，放在插件里自己 `html_render` 是正路。
+因此当前方案不是修改 Core，而是使用官方公开给插件的渲染能力来接管当前激活模板。
 
 ## 安装
 

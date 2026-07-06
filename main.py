@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from astrbot import __version__ as astrbot_version
@@ -16,20 +18,52 @@ from astrbot.api.star import Context, Star, register
 from astrbot.core.message.components import Image, Plain
 from astrbot.core.utils.t2i.template_manager import TemplateManager
 
-SEQUENCE_STATE_KEY = "template_sequence_index"
 DEFAULT_TIMEZONE = "Asia/Shanghai"
 DEFAULT_SCREENSHOT_OPTIONS = {
     "type": "png",
     "full_page": True,
     "animations": "disabled",
 }
-OFFICIAL_TEMPLATE_SOURCE = "official_template_name"
-INLINE_TEMPLATE_SOURCE = "inline_template_html"
+RESERVED_TEMPLATE_VARS = {
+    "text",
+    "content",
+    "html",
+    "template_name",
+    "bg_url",
+    "date",
+    "time",
+    "datetime",
+    "timestamp",
+    "timezone",
+    "year",
+    "month",
+    "day",
+    "hour",
+    "minute",
+    "second",
+    "weekday",
+    "version",
+}
+SAFE_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+SAFE_HTML_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9:_-]*$")
+SAFE_PROTOCOL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*$")
+MAX_CUSTOM_VAR_DEPTH = 5
+ALLOWED_SCREENSHOT_KEYS = {
+    "type",
+    "quality",
+    "omit_background",
+    "full_page",
+    "clip",
+    "animations",
+    "caret",
+    "scale",
+    "timeout",
+}
 
 
 def normalize_t2i_threshold(value: object) -> int:
     try:
-        return max(int(value), 50)
+        return int(value)
     except (TypeError, ValueError):
         return 150
 
@@ -62,23 +96,57 @@ def normalize_allowed_attributes(config: dict) -> dict[str, list[str]]:
     if not isinstance(raw, dict):
         return {}
     return {
-        str(tag): [str(attr) for attr in attrs if attr]
+        str(tag): [
+            str(attr)
+            for attr in attrs
+            if attr and SAFE_HTML_NAME_RE.fullmatch(str(attr))
+        ]
         for tag, attrs in raw.items()
-        if isinstance(attrs, list) and attrs
+        if isinstance(attrs, list) and attrs and SAFE_HTML_NAME_RE.fullmatch(str(tag))
     }
+
+
+def normalize_allowed_tags(config: dict) -> set[str]:
+    raw = config.get("allowed_tags", [])
+    if not isinstance(raw, list):
+        return set()
+    return {
+        str(tag)
+        for tag in raw
+        if str(tag).strip() and SAFE_HTML_NAME_RE.fullmatch(str(tag))
+    }
+
+
+def normalize_allowed_protocols(config: dict) -> list[str]:
+    raw = config.get("allowed_protocols", [])
+    if not isinstance(raw, list):
+        return ["http", "https"]
+    protocols = []
+    for item in raw:
+        protocol = str(item).strip().lower()
+        if protocol and SAFE_PROTOCOL_RE.fullmatch(protocol):
+            protocols.append(protocol)
+    return protocols or ["http", "https"]
+
+
+def normalize_markdown_extensions(config: dict) -> list[str]:
+    raw = config.get("markdown_extensions", [])
+    if not isinstance(raw, list):
+        return []
+    return [str(ext).strip() for ext in raw if str(ext).strip()]
 
 
 def markdown_to_safe_html(text: str, config: dict) -> str:
     html = markdown.markdown(
         text,
-        extensions=config.get("markdown_extensions", []),
+        extensions=normalize_markdown_extensions(config),
         output_format="html5",
     )
     return bleach.clean(
         html,
-        tags=set(config.get("allowed_tags", [])),
+        tags=normalize_allowed_tags(config),
         attributes=normalize_allowed_attributes(config),
-        protocols=config.get("allowed_protocols", []),
+        protocols=normalize_allowed_protocols(config),
         strip=True,
     )
 
@@ -86,16 +154,48 @@ def markdown_to_safe_html(text: str, config: dict) -> str:
 def sanitize_html(text: str, config: dict) -> str:
     return bleach.clean(
         text,
-        tags=set(config.get("allowed_tags", [])),
+        tags=normalize_allowed_tags(config),
         attributes=normalize_allowed_attributes(config),
-        protocols=config.get("allowed_protocols", []),
+        protocols=normalize_allowed_protocols(config),
         strip=True,
     )
 
 
+def sanitize_custom_var_value(value: Any, depth: int = 0) -> Any:
+    if depth > MAX_CUSTOM_VAR_DEPTH:
+        return None
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return [sanitize_custom_var_value(item, depth + 1) for item in value]
+    if isinstance(value, dict):
+        normalized: dict[str, Any] = {}
+        for key, item in value.items():
+            key_name = str(key).strip()
+            if SAFE_VAR_NAME_RE.fullmatch(key_name):
+                normalized[key_name] = sanitize_custom_var_value(item, depth + 1)
+        return normalized
+    return str(value)
+
+
 def parse_custom_vars(raw: str) -> dict[str, Any]:
     data = parse_json_config(raw, {}, "custom_vars_json")
-    return data if isinstance(data, dict) else {}
+    if not isinstance(data, dict):
+        return {}
+
+    normalized: dict[str, Any] = {}
+    for key, value in data.items():
+        key_name = str(key).strip()
+        if not SAFE_VAR_NAME_RE.fullmatch(key_name):
+            logger.warning("[t2i_enhance] ignore invalid custom var name: %s", key_name)
+            continue
+        if key_name in RESERVED_TEMPLATE_VARS:
+            logger.warning("[t2i_enhance] ignore reserved custom var name: %s", key_name)
+            continue
+        normalized[key_name] = sanitize_custom_var_value(value)
+    return normalized
 
 
 def parse_screenshot_options(raw: str) -> dict[str, Any]:
@@ -103,62 +203,33 @@ def parse_screenshot_options(raw: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         data = {}
     options = dict(DEFAULT_SCREENSHOT_OPTIONS)
-    options.update(data)
+    for key, value in data.items():
+        if key not in ALLOWED_SCREENSHOT_KEYS:
+            logger.warning("[t2i_enhance] ignore unsupported screenshot option: %s", key)
+            continue
+        if key == "type" and value in {"png", "jpeg"}:
+            options[key] = value
+        elif key == "quality" and isinstance(value, int) and 0 <= value <= 100:
+            options[key] = value
+        elif key in {"omit_background", "full_page"} and isinstance(value, bool):
+            options[key] = value
+        elif key == "animations" and value in {"allow", "disabled"}:
+            options[key] = value
+        elif key == "caret" and value in {"hide", "initial"}:
+            options[key] = value
+        elif key == "scale" and value in {"css", "device"}:
+            options[key] = value
+        elif key == "timeout" and isinstance(value, (int, float)) and value > 0:
+            options[key] = value
+        elif key == "clip" and isinstance(value, dict):
+            clip = {
+                clip_key: value.get(clip_key)
+                for clip_key in ("x", "y", "width", "height")
+                if isinstance(value.get(clip_key), (int, float)) and value.get(clip_key) >= 0
+            }
+            if len(clip) == 4 and clip["width"] > 0 and clip["height"] > 0:
+                options[key] = clip
     return options
-
-
-def normalize_template_candidates(config: dict) -> list[dict[str, Any]]:
-    candidates = config.get("template_candidates", [])
-    normalized: list[dict[str, Any]] = []
-    if not isinstance(candidates, list):
-        return normalized
-
-    for item in candidates:
-        if not isinstance(item, dict):
-            continue
-        enabled = item.get("enabled", True)
-        template_html = str(item.get("template_html", "")).strip()
-        if not enabled or not template_html:
-            continue
-        backgrounds = item.get("background_candidates", [])
-        normalized.append(
-            {
-                "name": str(item.get("name", "")).strip() or "未命名模板",
-                "template_source": str(
-                    item.get("template_source", INLINE_TEMPLATE_SOURCE),
-                ).strip()
-                or INLINE_TEMPLATE_SOURCE,
-                "template_html": template_html,
-                "official_template_name": str(
-                    item.get("official_template_name", ""),
-                ).strip(),
-                "render_markdown": bool(item.get("render_markdown", True)),
-                "sanitize_html_input": bool(item.get("sanitize_html_input", True)),
-                "title": str(item.get("title", "")).strip(),
-                "subtitle": str(item.get("subtitle", "")).strip(),
-                "footer_left": str(item.get("footer_left", "")).strip(),
-                "footer_right": str(item.get("footer_right", "")).strip(),
-                "background_candidates": [
-                    str(url).strip() for url in backgrounds if str(url).strip()
-                ]
-                if isinstance(backgrounds, list)
-                else [],
-            },
-        )
-    return normalized
-
-
-def select_background(config: dict, template_item: dict[str, Any]) -> str:
-    candidates = template_item.get("background_candidates", [])
-    if isinstance(candidates, list) and candidates:
-        return random.choice(candidates)
-
-    global_candidates = config.get("global_background_candidates", [])
-    if isinstance(global_candidates, list) and global_candidates:
-        valid = [str(url).strip() for url in global_candidates if str(url).strip()]
-        if valid:
-            return random.choice(valid)
-    return ""
 
 
 def resolve_timezone(config: dict) -> ZoneInfo:
@@ -186,6 +257,13 @@ def collect_leading_plain_text(result) -> tuple[str, int]:
     return "".join(parts), count
 
 
+def is_allowed_url(url: str, config: dict) -> bool:
+    parsed = urlparse(url)
+    if not parsed.scheme:
+        return False
+    return parsed.scheme.lower() in set(normalize_allowed_protocols(config))
+
+
 def should_render(context: Context, plugin_config: dict, event: AstrMessageEvent, result) -> bool:
     if not plugin_config.get("plugin_enabled", True):
         return False
@@ -194,11 +272,6 @@ def should_render(context: Context, plugin_config: dict, event: AstrMessageEvent
 
     if not (((result.use_t2i_ is None) and astrbot_config["t2i"]) or result.use_t2i_):
         return False
-
-    if plugin_config.get("respect_official_excluded_templates", True):
-        active_template = astrbot_config.get("t2i_active_template")
-        if active_template in plugin_config.get("excluded_templates", []):
-            return False
 
     plain_text, _ = collect_leading_plain_text(result)
     if not plain_text:
@@ -211,8 +284,8 @@ def should_render(context: Context, plugin_config: dict, event: AstrMessageEvent
 @register(
     "t2i_enhance",
     "Codex",
-    "T2I Enhance: self-render HTML templates with backend-injected variables for AstrBot text-to-image.",
-    "2.0.0",
+    "T2I Enhance: take over AstrBot active T2I template rendering with backend-injected variables.",
+    "2.1.0",
 )
 class T2IEnhancePlugin(Star):
     def __init__(self, context: Context, config: dict):
@@ -220,81 +293,63 @@ class T2IEnhancePlugin(Star):
         self.config = config
         self.template_manager = TemplateManager()
 
-    async def _select_template(self, templates: list[dict[str, Any]]) -> dict[str, Any]:
-        mode = str(self.config.get("template_switch_mode", "fixed")).strip().lower()
-        if not templates:
-            raise ValueError("No template candidates available")
+    def _resolve_active_template_name(self, event: AstrMessageEvent) -> str:
+        astrbot_config = self.context.get_config(event.unified_msg_origin)
+        return str(astrbot_config.get("t2i_active_template", "base")).strip() or "base"
 
-        if mode == "random":
-            return random.choice(templates)
+    def _resolve_template_html(self, event: AstrMessageEvent) -> str:
+        return self.template_manager.get_template(self._resolve_active_template_name(event))
 
-        if mode == "sequential":
-            current = await self.get_kv_data(SEQUENCE_STATE_KEY, 0)
-            try:
-                index = int(current or 0)
-            except (TypeError, ValueError):
-                index = 0
-            selected = templates[index % len(templates)]
-            await self.put_kv_data(SEQUENCE_STATE_KEY, (index + 1) % len(templates))
-            return selected
-
-        return templates[0]
-
-    def _build_rendered_content(self, plain_text: str, template_item: dict[str, Any]) -> str:
-        render_markdown = template_item.get("render_markdown", True)
-        sanitize_html_input = template_item.get("sanitize_html_input", True)
-
-        if render_markdown:
+    def _build_rendered_content(self, plain_text: str) -> str:
+        if self.config.get("render_markdown", True):
             return markdown_to_safe_html(plain_text, self.config)
 
-        if sanitize_html_input:
+        if self.config.get("sanitize_html_input", True):
             return sanitize_html(plain_text, self.config)
 
         return plain_text
 
-    def _resolve_template_html(self, template_item: dict[str, Any]) -> str:
-        source = template_item.get("template_source", INLINE_TEMPLATE_SOURCE)
-        if source == OFFICIAL_TEMPLATE_SOURCE:
-            official_name = template_item.get("official_template_name", "")
-            if not official_name:
-                raise ValueError("official_template_name is required")
-            return self.template_manager.get_template(official_name)
-
-        template_html = template_item.get("template_html", "")
-        if not template_html:
-            raise ValueError("template_html is required")
-        return template_html
+    def _select_background(self) -> str:
+        candidates = self.config.get("background_candidates", [])
+        if not isinstance(candidates, list):
+            return ""
+        valid = []
+        for item in candidates:
+            url = str(item).strip()
+            if not url:
+                continue
+            if not is_allowed_url(url, self.config):
+                logger.warning("[t2i_enhance] ignore background with disallowed protocol: %s", url)
+                continue
+            valid.append(url)
+        return random.choice(valid) if valid else ""
 
     def _build_template_data(
         self,
+        event: AstrMessageEvent,
         plain_text: str,
-        template_item: dict[str, Any],
         rendered_content: str,
     ) -> dict[str, Any]:
         now = datetime.now(resolve_timezone(self.config))
         custom_vars = parse_custom_vars(self.config.get("custom_vars_json", "{}"))
-        background_url = select_background(self.config, template_item)
 
         data: dict[str, Any] = {
             "text": plain_text,
             "content": rendered_content,
             "html": rendered_content,
-            "template_name": template_item.get("name", ""),
-            "bg_url": background_url,
+            "template_name": self._resolve_active_template_name(event),
+            "bg_url": self._select_background(),
             "version": f"v{astrbot_version}",
         }
 
         if self.config.get("inject_datetime", True):
-            datetime_format = str(
-                self.config.get("datetime_format", "%Y-%m-%d %H:%M:%S"),
-            )
-            date_format = str(self.config.get("date_format", "%Y-%m-%d"))
-            time_format = str(self.config.get("time_format", "%H:%M:%S"))
             data.update(
                 {
-                    "datetime": now.strftime(datetime_format),
-                    "date": now.strftime(date_format),
-                    "time": now.strftime(time_format),
+                    "datetime": now.strftime(
+                        str(self.config.get("datetime_format", "%Y-%m-%d %H:%M:%S")),
+                    ),
+                    "date": now.strftime(str(self.config.get("date_format", "%Y-%m-%d"))),
+                    "time": now.strftime(str(self.config.get("time_format", "%H:%M:%S"))),
                     "timestamp": int(now.timestamp()),
                     "timezone": str(now.tzinfo),
                     "year": now.year,
@@ -306,15 +361,6 @@ class T2IEnhancePlugin(Star):
                     "weekday": now.strftime("%A"),
                 },
             )
-
-        if template_item.get("title"):
-            data["title"] = template_item["title"]
-        if template_item.get("subtitle"):
-            data["subtitle"] = template_item["subtitle"]
-        if template_item.get("footer_left"):
-            data["footer_left"] = template_item["footer_left"]
-        if template_item.get("footer_right"):
-            data["footer_right"] = template_item["footer_right"]
 
         for key, value in custom_vars.items():
             data[key] = value
@@ -330,24 +376,14 @@ class T2IEnhancePlugin(Star):
         if not should_render(self.context, self.config, event, result):
             return
 
-        templates = normalize_template_candidates(self.config)
-        if not templates:
-            logger.warning("[t2i_enhance] no valid template candidates configured.")
-            return
-
         plain_text, leading_plain_count = collect_leading_plain_text(result)
         if not plain_text or leading_plain_count == 0:
             return
 
         try:
-            template_item = await self._select_template(templates)
-            template_html = self._resolve_template_html(template_item)
-            rendered_content = self._build_rendered_content(plain_text, template_item)
-            template_data = self._build_template_data(
-                plain_text=plain_text,
-                template_item=template_item,
-                rendered_content=rendered_content,
-            )
+            template_html = self._resolve_template_html(event)
+            rendered_content = self._build_rendered_content(plain_text)
+            template_data = self._build_template_data(event, plain_text, rendered_content)
             rendered_image = await self.html_render(
                 template_html,
                 template_data,
@@ -357,15 +393,14 @@ class T2IEnhancePlugin(Star):
                 ),
             )
         except Exception:
-            logger.exception("[t2i_enhance] failed to render custom HTML template.")
+            logger.exception("[t2i_enhance] failed to render active T2I template.")
             return
 
         suffix_chain = result.chain[leading_plain_count:]
         event.track_temporary_local_file(rendered_image)
-        image_component = Image.fromFileSystem(rendered_image)
-        result.chain = [image_component, *suffix_chain]
+        result.chain = [Image.fromFileSystem(rendered_image), *suffix_chain]
         result.use_t2i_ = False
         logger.debug(
-            "[t2i_enhance] rendered image with template: %s",
-            template_item.get("name", ""),
+            "[t2i_enhance] rendered image with active template: %s",
+            self._resolve_active_template_name(event),
         )

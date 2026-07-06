@@ -1,9 +1,9 @@
 name: t2i_enhance
 display_name: T2I Enhance
 short_desc: 通过插件后端直接调用 html_render，自主选择模板并注入变量，全面增强 AstrBot 文本转图片能力。
-desc: 该插件不再只做 Markdown 预处理，而是直接接管符合条件的 T2I 文本渲染流程，自主调用 html_render(HTML, data, options)，支持多模板切换、后端变量注入、日期时间、背景图候选、自定义变量与 HTML/Markdown 安全清洗。
-help: 适用于需要由插件后端控制 HTML 模板、模板变量、背景图和渲染方式的 AstrBot T2I 场景。插件会在命中 AstrBot T2I 触发阈值后，自行构造模板数据并输出图片结果。
-version: v2.0.0
+desc: 插件会直接接管当前 AstrBot 已启用的 T2I 模板渲染流程，读取当前激活模板内容后，自主调用 html_render(HTML, data, options)，为模板注入日期时间、背景图、自定义变量以及 HTML/Markdown 增强结果。
+help: 适用于已经在 AstrBot 中维护 T2I 模板、但还需要后端动态变量注入和渲染增强能力的场景。插件不会再重复维护官方模板来源，而是直接增强当前激活模板。
+version: v2.1.0
 astrbot_version: ">=4.26,<5"
 support_platforms:
   - aiocqhttp
