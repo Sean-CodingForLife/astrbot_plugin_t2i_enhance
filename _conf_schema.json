@@ -1,20 +1,20 @@
 {
   "plugin_enabled": {
-    "description": "Enable Markdown-to-HTML conversion for eligible custom T2I templates.",
+    "description": "为符合条件的自定义 T2I 模板启用 Markdown 转 HTML。",
     "type": "bool",
-    "hint": "Turn the plugin on or off without uninstalling it.",
+    "hint": "不卸载插件的情况下直接开启或关闭功能。",
     "default": true
   },
   "skip_existing_html": {
-    "description": "Skip conversion when the plain text already looks like HTML.",
+    "description": "当纯文本本身已经像 HTML 时，跳过转换。",
     "type": "bool",
-    "hint": "Recommended for templates or messages that may already contain rendered HTML.",
+    "hint": "如果模板或消息本身可能已经包含渲染后的 HTML，建议开启。",
     "default": true
   },
   "excluded_templates": {
-    "description": "T2I template names that must never be pre-rendered by this plugin.",
+    "description": "永远不应被本插件预渲染的 T2I 模板名。",
     "type": "list",
-    "hint": "Official built-in Markdown templates should stay here.",
+    "hint": "官方内置 Markdown 模板建议保留在这里。",
     "default": [
       "base",
       "astrbot_vitepress",
@@ -22,9 +22,9 @@
     ]
   },
   "markdown_extensions": {
-    "description": "Python-Markdown extensions used before sanitization.",
+    "description": "在清洗前传给 Python-Markdown 的扩展列表。",
     "type": "list",
-    "hint": "These names are passed directly to markdown.markdown(..., extensions=[...]).",
+    "hint": "这些名称会直接传给 markdown.markdown(..., extensions=[...])。",
     "default": [
       "extra",
       "sane_lists",
@@ -34,9 +34,9 @@
     ]
   },
   "allowed_protocols": {
-    "description": "Allowed URL protocols during bleach sanitization.",
+    "description": "在 bleach 清洗阶段允许保留的 URL 协议。",
     "type": "list",
-    "hint": "Restricts href/src protocols that survive sanitization.",
+    "hint": "用于限制 href/src 中哪些协议能够保留下来。",
     "default": [
       "http",
       "https",
@@ -44,9 +44,9 @@
     ]
   },
   "allowed_tags": {
-    "description": "HTML tags allowed after sanitization.",
+    "description": "清洗后允许保留的 HTML 标签。",
     "type": "list",
-    "hint": "Only these tags survive bleach.clean(...).",
+    "hint": "只有这些标签可以在 bleach.clean(...) 后被保留。",
     "default": [
       "a",
       "abbr",
@@ -88,17 +88,17 @@
     ]
   },
   "allowed_attributes_json": {
-    "description": "Allowed HTML attributes after sanitization.",
+    "description": "清洗后允许保留的 HTML 属性。",
     "type": "text",
-    "hint": "JSON object mapping tag names to attribute lists, for example {\"a\": [\"href\", \"title\"]}.",
+    "hint": "使用 JSON 对象配置标签名到属性列表的映射，例如 {\"a\": [\"href\", \"title\"]}。",
     "editor_mode": true,
     "editor_language": "json",
     "default": "{\n  \"a\": [\"href\", \"title\"],\n  \"img\": [\"src\", \"alt\", \"title\"],\n  \"code\": [\"class\"],\n  \"pre\": [\"class\"],\n  \"span\": [\"class\"],\n  \"div\": [\"class\"],\n  \"th\": [\"align\"],\n  \"td\": [\"align\"]\n}"
   },
   "html_tag_pattern": {
-    "description": "Regex used to detect whether plain text already contains HTML tags.",
+    "description": "用于检测纯文本是否已经包含 HTML 标签的 regex。",
     "type": "string",
-    "hint": "Case-insensitive pattern passed to re.search(...).",
+    "hint": "会以忽略大小写的方式传给 re.search(...)。",
     "default": "<[a-z][^>]*>"
   }
 }

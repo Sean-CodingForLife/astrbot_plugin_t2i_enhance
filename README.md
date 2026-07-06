@@ -1,71 +1,71 @@
 # T2I Enhance
 
-Render Markdown structure before AstrBot text-to-image generation.
+在 AstrBot 文转图前保留 Markdown 结构。
 
-This plugin is only for custom AstrBot T2I templates that render `text` as raw HTML. It converts outgoing Markdown into sanitized HTML right before AstrBot runs text-to-image, so templates using `{{ text | safe }}` can preserve headings, lists, quotes, code blocks, and tables.
+这个插件只适用于自定义 AstrBot T2I 模板，并且模板需要把 `text` 直接当原始 HTML 渲染。插件会在 AstrBot 执行文转图之前，把输出的 Markdown 转成经过清洗的 HTML，这样使用 `{{ text | safe }}` 的模板就能保留标题、列表、引用、代码块、表格等结构。
 
-It does not target AstrBot's official built-in templates such as `base`, `astrbot_vitepress`, or `astrbot_powershell`. Those templates already parse Markdown themselves with `marked.parse(...)`, so pre-rendering Markdown to HTML would conflict with the official flow.
+它不会作用于 AstrBot 官方内置模板，例如 `base`、`astrbot_vitepress`、`astrbot_powershell`。这些模板本身已经通过 `marked.parse(...)` 解析 Markdown，提前把 Markdown 渲染成 HTML 反而会和官方流程冲突。
 
-## Features
+## 功能说明
 
-- Converts Markdown to safe HTML before T2I rendering
-- Preserves headings, paragraphs, lists, quotes, code blocks, tables, footnotes, and admonitions
-- Sanitizes rendered HTML with `bleach`
-- Skips content that already looks like rendered HTML
-- Mirrors AstrBot's own T2I gating, including `t2i`, `use_t2i_`, the message-chain shape, and `t2i_word_threshold`
-- Ignores AstrBot's official Markdown-driven templates to avoid double rendering
-- Works with custom HTML T2I templates that use `{{ text | safe }}`
-- Exposes sanitizer and matching behavior through plugin settings instead of hard-coded constants
+- 在 T2I 渲染前把 Markdown 转成安全 HTML
+- 保留标题、段落、列表、引用、代码块、表格、脚注、admonition 等结构
+- 使用 `bleach` 清洗渲染后的 HTML
+- 已经看起来像 HTML 的内容可以跳过转换
+- 复刻 AstrBot 自己的 T2I 触发条件，包括 `t2i`、`use_t2i_`、消息链结构和 `t2i_word_threshold`
+- 默认忽略 AstrBot 官方 Markdown 模板，避免重复渲染
+- 适用于使用 `{{ text | safe }}` 的自定义 HTML T2I 模板
+- sanitizer 和匹配行为都可以通过插件设置调整，不再依赖硬编码常量
 
-## Installation
+## 安装方式
 
-1. Copy this folder to your AstrBot plugin directory:
+1. 把当前目录复制到 AstrBot 插件目录：
 
    ```text
    data/plugins/astrbot_plugin_t2i_enhance
    ```
 
-2. Install plugin dependencies:
+2. 安装插件依赖：
 
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Reload the plugin in AstrBot WebUI.
+3. 在 AstrBot WebUI 里重载插件。
 
-4. Open the plugin settings in AstrBot WebUI if you want to tune excluded templates, Markdown extensions, HTML detection, or sanitizer allowlists.
+4. 如果你想调整排除模板、Markdown 扩展、HTML 检测规则或 sanitizer 白名单，可以在 AstrBot WebUI 里打开插件设置。
 
-## Requirements
+## 依赖要求
 
 - `markdown>=3.6`
 - `bleach>=6.1.0`
 
-## Recommended T2I Template
+## 推荐模板写法
 
-Use a custom T2I template that renders `text` directly:
+推荐使用直接渲染 `text` 的自定义 T2I 模板：
 
 ```html
 {{ text | safe }}
 ```
 
-The plugin renders Markdown into sanitized HTML before AstrBot passes the text into the template.
+插件会在 AstrBot 把 `text` 传进模板之前，先把 Markdown 转成经过清洗的 HTML。
 
-## Plugin Settings
+## 插件设置
 
-The plugin now reads its behavior from [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json). The main settings are:
+插件当前通过 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1) 读取配置。主要设置项如下：
 
-- `plugin_enabled`: turns the plugin on or off.
-- `skip_existing_html`: skips conversion when the message already looks like HTML.
-- `excluded_templates`: template names that should never be pre-rendered by this plugin.
-- `markdown_extensions`: Python-Markdown extensions used before sanitization.
-- `allowed_protocols`: allowed URL schemes during `bleach` sanitization.
-- `allowed_tags`: allowed HTML tags after sanitization.
-- `allowed_attributes_json`: JSON object that maps tag names to allowed HTML attributes.
-- `html_tag_pattern`: regex used to detect existing HTML in plain text.
+- `plugin_enabled`：控制插件是否启用。
+- `skip_existing_html`：当消息内容本身已经像 HTML 时，是否跳过转换。
+- `excluded_templates`：这些模板名永远不会被本插件预渲染。
+- `markdown_extensions`：转换前传给 Python-Markdown 的扩展列表。
+- `allowed_protocols`：`bleach` 清洗时允许保留的 URL 协议。
+- `allowed_tags`：清洗后允许保留的 HTML 标签。
+- `allowed_attributes_json`：JSON 对象，用来配置每个标签允许保留哪些 HTML 属性。
+- `html_tag_pattern`：用于判断文本是否已经包含 HTML 的 regex。
 
-## Notes
+## 注意事项
 
-- This plugin only runs when AstrBot would already enter its T2I path and the plain-text payload length exceeds `t2i_word_threshold` (default `150`).
-- This plugin does not affect AstrBot's official built-in templates, because they already render Markdown inside the template.
-- If your T2I setup uses a non-HTML renderer, or a template that re-parses Markdown instead of rendering raw HTML, this plugin is not the right tool.
+- 只有当 AstrBot 本来就会进入 T2I 流程，并且纯文本长度超过 `t2i_word_threshold`（默认 `150`）时，插件才会生效。
+- 插件不会影响 AstrBot 官方内置模板，因为这些模板已经会在模板内部处理 Markdown。
+- 如果你的 T2I 使用的不是 HTML 渲染器，或者模板本身还会再次解析 Markdown，那这个插件并不适合你的场景。
 
