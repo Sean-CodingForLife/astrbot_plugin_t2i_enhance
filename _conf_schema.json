@@ -87,39 +87,13 @@
       "ul"
     ]
   },
-  "allowed_attributes": {
+  "allowed_attributes_json": {
     "description": "Allowed HTML attributes after sanitization.",
-    "type": "object",
-    "hint": "Maps tag names to the list of attributes that may survive bleach.clean(...).",
-    "default": {
-      "a": [
-        "href",
-        "title"
-      ],
-      "img": [
-        "src",
-        "alt",
-        "title"
-      ],
-      "code": [
-        "class"
-      ],
-      "pre": [
-        "class"
-      ],
-      "span": [
-        "class"
-      ],
-      "div": [
-        "class"
-      ],
-      "th": [
-        "align"
-      ],
-      "td": [
-        "align"
-      ]
-    }
+    "type": "text",
+    "hint": "JSON object mapping tag names to attribute lists, for example {\"a\": [\"href\", \"title\"]}.",
+    "editor_mode": true,
+    "editor_language": "json",
+    "default": "{\n  \"a\": [\"href\", \"title\"],\n  \"img\": [\"src\", \"alt\", \"title\"],\n  \"code\": [\"class\"],\n  \"pre\": [\"class\"],\n  \"span\": [\"class\"],\n  \"div\": [\"class\"],\n  \"th\": [\"align\"],\n  \"td\": [\"align\"]\n}"
   },
   "html_tag_pattern": {
     "description": "Regex used to detect whether plain text already contains HTML tags.",

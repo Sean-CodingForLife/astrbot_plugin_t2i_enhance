@@ -60,7 +60,7 @@ The plugin now reads its behavior from [_conf_schema.json](C:/Users/Administrato
 - `markdown_extensions`: Python-Markdown extensions used before sanitization.
 - `allowed_protocols`: allowed URL schemes during `bleach` sanitization.
 - `allowed_tags`: allowed HTML tags after sanitization.
-- `allowed_attributes`: allowed HTML attributes after sanitization.
+- `allowed_attributes_json`: JSON object that maps tag names to allowed HTML attributes.
 - `html_tag_pattern`: regex used to detect existing HTML in plain text.
 
 ## Notes

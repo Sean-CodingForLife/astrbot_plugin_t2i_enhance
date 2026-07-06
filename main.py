@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 
 import bleach
@@ -10,6 +11,16 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 from astrbot.core.message.components import Plain
 
+
+def normalize_allowed_attributes(config: dict) -> dict[str, list[str]]:
+    raw = json.loads(config["allowed_attributes_json"])
+    return {
+        tag: attrs
+        for tag, attrs in raw.items()
+        if attrs
+    }
+
+
 def markdown_to_safe_html(text: str, config) -> str:
     html = markdown.markdown(
         text,
@@ -19,7 +30,7 @@ def markdown_to_safe_html(text: str, config) -> str:
     return bleach.clean(
         html,
         tags=set(config["allowed_tags"]),
-        attributes=config["allowed_attributes"],
+        attributes=normalize_allowed_attributes(config),
         protocols=config["allowed_protocols"],
         strip=True,
     )
