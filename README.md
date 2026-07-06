@@ -1,165 +1,180 @@
 # T2I Enhance
 
-> 插件自己维护 HTML 模板，自己注入变量，自己调用 `html_render(template, data, options)` 渲染，不再读取或接管任何官方模板内容。
-
 ![T2I Enhance Icon](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/icon.svg)
 
-## 先看这个
+> 一个基于 `html_render(template, data, options)` 的 AstrBot T2I 增强插件。  
+> 插件自己维护模板、自己注入变量、自己执行渲染，不读取、不绑定、不接管任何官方模板内容。
 
-这版从架构上已经和官方模板彻底分开。
+## 概览
 
-### 1. 官方模板是官方的，插件模板是插件自己的
+### 这是什么
 
-现在开始，这个插件不再：
+`T2I Enhance` 的定位很明确：
+
+- 它不是官方模板编辑器的补丁
+- 它不是 Core 的二次封装
+- 它不是“顺手给 Markdown 加点样式”的小修小补
+
+它做的事情只有一件：
+
+- 在命中 AstrBot T2I 条件时，使用插件自己的 HTML 模板和变量体系，把文本渲染成图片
+
+### 这版最重要的边界
+
+从 `v1.0.0` 开始，插件和官方模板系统彻底分离：
+
+- 官方模板是官方模板
+- 插件模板是插件模板
+
+当前版本不会：
 
 - 读取官方模板 HTML
 - 绑定官方模板名
 - 跟随官方模板切换
-- 接手任何官方模板内容
+- 接管官方模板页里的内容
 
-现在的分工非常明确：
+这点是本插件最容易被误解的地方，也是最需要先记住的一点。
 
-- AstrBot 官方模板：官方自己的系统，和本插件无关
-- T2I Enhance 模板：插件自己维护，插件自己使用
+## 为什么这样设计
 
-也就是说，**不做交叉，不做混用，不做联动。**
+核心原因不是“为了特别”，而是官方模板保存链路本身有变量白名单限制。
 
-### 2. 为什么要这样改
-
-因为官方模板编辑器保存模板时有变量白名单限制。
-
-比如你想在模板里写：
+例如下面这些变量写进官方模板时，会遇到保存限制或无法按预期工作：
 
 - `{{ bg_url }}`
 - `{{ content | safe }}`
 - `{{ datetime }}`
+- 自定义变量，如 `{{ site_name }}`
 
-官方模板编辑器会直接拦截，不让保存。
+这个插件的路线就是绕开那层限制：
 
-所以如果插件还依赖官方模板内容，就会一直被官方模板保存校验卡住。
+- 模板内容改由插件配置保存
+- 模板变量改由插件后端注入
+- 渲染直接走 `html_render(template, data, options)`
 
-现在改成插件自己维护模板后，这个限制就不再存在。
+所以当前架构不是“和官方模板联动增强”，而是“插件独立维护一套模板渲染能力”。
 
-### 3. 现在的核心原则
+## 工作方式
 
-从 `v3.0.0` 开始，这个插件只有一条路线：
+插件触发流程很简单：
 
-- 模板 HTML 由插件自己保存
-- 模板变量由插件自己注入
-- 渲染流程由插件自己执行
-
-官方只剩下两件事还会影响插件：
-
-- AstrBot 的 T2I 总开关
-- AstrBot 的 T2I 触发阈值
-
-除此之外，插件不再依赖官方模板系统。
-
-## 现在怎么工作
-
-插件渲染流程变成：
-
-1. 检查当前 AstrBot 是否开启 T2I
-2. 检查当前文本长度是否超过 AstrBot 当前阈值
-3. 从插件配置里取出当前启用的 `active_profile`
-4. 读取这条 profile 里的 `template_html`
-5. 生成模板变量 `data`
-6. 调用 `html_render(template_html, data, options)`
-7. 把结果替换成图片
-
-所以现在模板来源只有一个：
-
-- `template_profiles[].template_html`
-
-## 快速上手
-
-第一次使用建议按这个顺序来：
-
-1. 打开插件配置
-2. 在 `template_profiles` 里保留或新增一条模板配置
-3. 给这条配置起一个 `name`
-4. 把 `active_profile` 填成这个 `name`
-5. 在这条配置的 `template_html` 里写模板
-6. 打开 `render_markdown`
-7. 直接测试
-
-默认模板就是：
-
-```html
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <title>New Template</title>
-</head>
-<body>
-  <!-- 从这里开始编辑 -->
-  <article>{{ text | safe }}</article>
-</body>
-</html>
+```mermaid
+flowchart TD
+    A["AstrBot 产出结果"] --> B["检查 T2I 是否开启"]
+    B --> C["检查前导 Plain 文本是否存在"]
+    C --> D["检查文本长度是否超过阈值"]
+    D --> E["读取 active_profile"]
+    E --> F["读取 template_profiles[].template_html"]
+    F --> G["构建 data 变量"]
+    G --> H["html_render(template, data, options)"]
+    H --> I["替换结果链中的文本为图片"]
 ```
 
-## 最容易踩坑的地方
+受官方影响的只有两项：
 
-### 1. `active_profile` 没填对
+- AstrBot 的 `t2i` 总开关
+- AstrBot 的 `t2i_word_threshold`
 
-插件现在不再按官方模板名命中配置，而是按：
+除此之外，模板内容、模板变量、背景图、截图选项、时间变量，全部由插件自己处理。
 
-- 顶层 `active_profile`
-- 对应 `template_profiles[].name`
+## 安装
 
-这两个值来选择当前模板。
+1. 放入 AstrBot 插件目录
 
-如果 `active_profile = neon`，但你的模板配置名是 `default`，那插件不会用到你想要的模板。
+```text
+data/plugins/astrbot_plugin_t2i_enhance
+```
 
-### 2. 你还在官方模板页里改模板
+2. 安装依赖
 
-现在已经没用了。
+```bash
+pip install -r requirements.txt
+```
 
-因为插件不再读取官方模板 HTML，所以你在官方模板页里改：
+3. 在 AstrBot WebUI 重载插件
 
-- `{{ bg_url }}`
-- `{{ datetime }}`
-- `{{ content | safe }}`
+## 版本与适用范围
 
-都不会影响插件这边的渲染。
+- 当前版本：`v1.0.0`
+- AstrBot：`>=4.26,<5`
+- 支持平台：见 [metadata.yaml](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/metadata.yaml:1)
 
-你现在要改的是：
+## 配置结构
 
-- 插件配置里的 `template_profiles[].template_html`
+配置定义见 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1)。
 
-### 3. 你把背景图链接写到 `custom_vars_json`
+顶层只看三项：
 
-不对。
+- `plugin_enabled`
+- `active_profile`
+- `template_profiles`
 
-背景图应该放在：
+其中：
 
+- `plugin_enabled`：插件总开关
+- `active_profile`：当前启用的模板配置名
+- `template_profiles`：模板配置列表
+
+### `template_profiles` 里的关键项
+
+每条模板配置至少会涉及这些字段：
+
+- `enabled`
+- `name`
+- `template_html`
+- `render_markdown`
+- `sanitize_html_input`
+- `inject_datetime`
 - `background_candidates`
+- `background_switch_mode`
+- `custom_vars_json`
+- `screenshot_options_json`
 
-模板里写：
+不需要一开始就把所有配置都填满。真正常用的，通常只有：
 
-```html
-url("{{ bg_url }}")
+- `name`
+- `template_html`
+- `render_markdown`
+- `background_candidates`
+- `background_switch_mode`
+- `custom_vars_json`
+
+## 最小可用配置
+
+第一次接入，建议只保留一条模板配置：
+
+```json
+{
+  "plugin_enabled": true,
+  "active_profile": "default",
+  "template_profiles": [
+    {
+      "enabled": true,
+      "name": "default",
+      "template_html": "<!doctype html><html><body><article>{{ text | safe }}</article></body></html>",
+      "render_markdown": true,
+      "sanitize_html_input": true,
+      "inject_datetime": true,
+      "background_candidates": [],
+      "background_switch_mode": "random",
+      "custom_vars_json": "{}",
+      "screenshot_options_json": "{\"type\":\"png\",\"full_page\":true,\"animations\":\"disabled\"}"
+    }
+  ]
+}
 ```
 
-不要自己在 `custom_vars_json` 里重复定义 `bg_url`。
+默认模板正文建议先这样写：
 
-### 4. 你配置了背景图，但没设置切换模式
+```html
+<article>{{ text | safe }}</article>
+```
 
-现在背景图候选和切换方式是分开的：
+先跑通，再换成更复杂的模板。
 
-- `background_candidates`：候选背景图 URL 列表
-- `background_switch_mode`：切换模式
+## 模板变量
 
-可选模式：
-
-- `random`：每次渲染随机选一张
-- `sequential`：按列表顺序轮换
-- `fixed`：始终使用第一张
-
-## 变量说明
-
-插件会注入这些变量：
+插件会注入这些内置变量：
 
 - `text`
 - `raw_text`
@@ -181,47 +196,70 @@ url("{{ bg_url }}")
 - `weekday`
 - `version`
 
-每条模板配置里的 `custom_vars_json` 也会一起注入。
+每条模板配置中的 `custom_vars_json` 也会一起注入。
 
-重点解释：
+### 变量语义
 
-- `text`：增强后的正文，默认适合直接输出
-- `raw_text`：原始文本，未经过 Markdown 渲染
-- `content`：增强后的正文 HTML
-- `html`：同 `content`
-- `template_name`：当前插件模板配置名，不再是官方模板名
+这里有几个变量最容易用错：
 
-## 模板怎么写
+- `text`
+  - 增强后的正文内容
+  - 当前实现里会回填为渲染后的 HTML 内容
+  - 默认模板直接用它也能工作
+- `raw_text`
+  - 原始前导文本
+  - 不经过 Markdown 渲染
+- `content`
+  - 增强后的正文 HTML
+  - 语义上比 `text` 更清楚
+- `html`
+  - 与 `content` 等价
+- `template_name`
+  - 当前命中的插件模板配置名
+  - 不是官方模板名
+- `bg_url`
+  - 背景图候选中选出来的单个值
+  - 不需要你自己在 `custom_vars_json` 重复定义
 
-### 最省事的写法
+## 模板写法建议
+
+### 1. 最省事的写法
 
 ```html
 <article>{{ text | safe }}</article>
 ```
 
-优点：
+适合：
 
-- 第一次接入不用多想
-- Markdown 增强可以直接生效
+- 首次接入
+- 先验证插件是否命中
+- 不想先区分 `text / raw_text / content`
 
-### 推荐写法
+### 2. 更推荐的写法
 
 ```html
 <article>{{ content | safe }}</article>
 ```
 
-优点：
+适合：
 
-- 语义更清楚
-- `text` 和 `raw_text` 的职责更容易区分
+- 你明确知道这里想输出的是 HTML 正文
+- 想让模板语义更清晰
 
-### 原文写法
+### 3. 如果你要拿原文
 
 ```html
 <article>{{ raw_text }}</article>
 ```
 
-### 背景图写法
+适合：
+
+- 你不想要 Markdown 结果
+- 你要自己决定原文怎么排版
+
+## 背景图
+
+### 基本写法
 
 ```css
 background:
@@ -229,7 +267,7 @@ background:
   url("{{ bg_url }}") center / cover no-repeat;
 ```
 
-更稳一点：
+更稳的写法：
 
 ```jinja2
 background:
@@ -237,15 +275,30 @@ background:
   {% if bg_url %}, url("{{ bg_url }}") center / cover no-repeat{% endif %};
 ```
 
-### 背景图切换模式
+### 切换模式
 
-如果你配置了多张背景图：
+如果配置了多张背景图，插件支持三种模式：
 
-- `background_switch_mode = random`：适合做随机视觉变化
-- `background_switch_mode = sequential`：适合按顺序轮播模板背景
-- `background_switch_mode = fixed`：适合长期固定一张主背景
+- `random`
+  - 每次渲染随机选一张
+- `sequential`
+  - 按列表顺序轮换
+- `fixed`
+  - 始终使用第一张
 
-### 时间变量写法
+### 这个地方最容易踩坑
+
+不要把背景图写进 `custom_vars_json` 再自己维护 `bg_url`。
+
+正确做法是：
+
+- 把候选 URL 放到 `background_candidates`
+- 把切换策略放到 `background_switch_mode`
+- 模板里直接使用 `{{ bg_url }}`
+
+## 时间变量
+
+如果开启了 `inject_datetime`，可直接使用：
 
 ```html
 <span>{{ date }}</span>
@@ -253,119 +306,295 @@ background:
 <span>{{ datetime }}</span>
 ```
 
-## 配置说明
+格式由这些配置决定：
 
-配置定义见 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1)。
-
-顶层配置项：
-
-- `plugin_enabled`
-- `active_profile`
-- `template_profiles`
-
-每条 `template_profiles` 模板配置包含：
-
-- `enabled`
-- `name`
-- `template_html`
-- `inject_datetime`
 - `timezone`
 - `datetime_format`
 - `date_format`
 - `time_format`
-- `render_markdown`
-- `sanitize_html_input`
-- `background_candidates`
-- `background_switch_mode`
-- `custom_vars_json`
-- `screenshot_options_json`
-- `markdown_extensions`
-- `allowed_protocols`
-- `allowed_tags`
-- `allowed_attributes_json`
+
+## 自定义变量
+
+`custom_vars_json` 是一段 JSON 对象，键名会直接成为模板变量。
+
+例如：
+
+```json
+{
+  "site_name": "AstrBot",
+  "theme_name": "T2I Enhance",
+  "footer_text": "Generated by plugin"
+}
+```
+
+模板中可以直接使用：
+
+```html
+<footer>{{ footer_text }}</footer>
+```
+
+### 限制
+
+- 键名必须是合法变量名
+- 不能覆盖内置保留变量
+- 深层复杂结构会做最小清洗
+
+保留变量包括：
+
+- `text`
+- `raw_text`
+- `content`
+- `html`
+- `template_name`
+- `bg_url`
+- `date`
+- `time`
+- `datetime`
+- `timestamp`
+- `timezone`
+- `year`
+- `month`
+- `day`
+- `hour`
+- `minute`
+- `second`
+- `weekday`
+- `version`
+
+## 截图选项
+
+插件最终是通过 `html_render(..., options=...)` 截图的。
+
+默认值：
+
+```json
+{
+  "type": "png",
+  "full_page": true,
+  "animations": "disabled"
+}
+```
+
+目前只支持插件内部允许的截图参数子集，超出的键会被忽略。
+
+最常用的仍然是这几个：
+
+- `type`
+- `full_page`
+- `animations`
+- `quality`
+- `timeout`
 
 ## 模板安全校验
 
-插件现在会在读取模板配置时做最小安全校验。
+插件在读取模板配置时会做最小安全校验。
 
-命中以下危险模式的模板会被直接跳过，不参与渲染：
+命中以下危险模式的模板会被直接跳过：
 
 - Jinja2 dunder 链访问，如 `__class__`
-- 明显危险调用，如 `os.xxx`、`subprocess`、`.popen(`、`eval(`、`exec(`
+- `os.xxx`
+- `subprocess`
+- `.popen(`
+- `eval(`
+- `exec(`
 - Flask 上下文对象，如 `config`、`request`、`session`、`g`
 - `<script>` 标签
 - `javascript:` URL
 
-这不是为了限制正常的 HTML/CSS 排版，而是为了防止把明显危险的模板内容直接送进渲染流程。
+这不是通用模板沙箱，只是最小保护。
 
-## 多模板示例
+真实含义是：
 
-比如你想做两套插件模板：
+- 正常 HTML/CSS 模板可以写
+- 明显危险的模板内容不会进入渲染流程
 
-- `default`
-- `neon`
+## 这个插件最容易被误解的点
 
-那插件里就可以配两条模板配置：
+这一段比普通“注意事项”更重要，因为这些坑通常只有真正折腾过后才会意识到。
 
-- `name = default`
-- `name = neon`
+### 1. 改官方模板页，对本插件没用
 
-然后顶层：
+这是当前版本最核心的事实。
 
-- `active_profile = neon`
+你在官方模板页里修改：
 
-这样插件就会使用 `neon` 这套模板，不再看官方模板系统。
+- `{{ bg_url }}`
+- `{{ datetime }}`
+- `{{ content | safe }}`
 
-## 出问题先查什么
+都不会影响本插件。
 
-如果你测试后发现“插件没反应”或者“Markdown 像没生效”，先按这个顺序检查：
+因为本插件根本不读官方模板内容。
+
+### 2. `active_profile` 才是实际入口
+
+插件选模板不是靠“官方当前模板名”，而是靠：
+
+- 顶层 `active_profile`
+- 匹配 `template_profiles[].name`
+
+如果这两个对不上，插件就不会使用你以为的那套模板。
+
+### 3. 看起来“插件没生效”，很多时候其实是模板没接收增强结果
+
+这是非常典型的误判点。
+
+如果你用了插件，但模板正文没有接增强后的变量输出，例如正文位置没写：
+
+```html
+{{ text | safe }}
+```
+
+或者：
+
+```html
+{{ content | safe }}
+```
+
+那你会误以为：
+
+- Markdown 渲染失效了
+- 变量注入失效了
+- 插件没工作
+
+实际上可能只是模板没把增强结果渲染出来。
+
+### 4. `text` 和 `content` 不是“随便两个名字”
+
+当前实现里它们都能用，但语义不同：
+
+- `text` 更偏“兼容默认模板写法”
+- `content` 更偏“明确输出 HTML 正文”
+
+如果模板已经进入稳定阶段，优先建议用：
+
+```html
+{{ content | safe }}
+```
+
+### 5. 阈值不是你配置多少就一定按多少跑
+
+AstrBot Core 会对 `t2i_word_threshold` 做最小保护：
+
+- 小于 `50` 的值，最终按 `50` 生效
+- 非数字时，回退到 `150`
+
+所以有些“为什么短文本没触发 / 为什么触发时机不对”的问题，不一定是插件问题，而是阈值本身就被 Core 修正了。
+
+### 6. 插件处理的是结果链前导 `Plain`
+
+当前逻辑只收集结果链开头连续的 `Plain` 文本。
+
+这意味着：
+
+- 如果前面不是 `Plain`
+- 或者中间被其他组件打断
+
+那插件看到的可渲染文本就可能不是你想的那一整段。
+
+这个点很容易被忽视，但它是判断“为什么没触发”的关键线索之一。
+
+## 排查顺序
+
+如果你发现“没触发”“没渲染”“Markdown 像失效”，建议按下面顺序排查：
 
 1. `plugin_enabled` 是否开启
-2. `active_profile` 是否填对
-3. `template_profiles` 里有没有同名且启用的配置
-4. 当前选中的那条配置里 `template_html` 是否非空
-5. `render_markdown` 有没有打开
-6. 模板正文现在是 `{{ text | safe }}` 还是 `{{ content | safe }}`
-7. 当前文本长度是否超过 AstrBot 当前的 T2I 触发阈值
-8. `background_candidates` 和 `background_switch_mode` 是否配置正确
-9. 模板内容是否触发了插件的最小安全校验
+2. AstrBot 的 `t2i` 是否开启
+3. 当前文本长度是否超过实际生效阈值
+4. `active_profile` 是否和某条已启用 `template_profiles[].name` 匹配
+5. 该 profile 的 `template_html` 是否非空
+6. 正文位置是否真的输出了 `{{ text | safe }}` 或 `{{ content | safe }}`
+7. `render_markdown` 是否按预期开启
+8. `background_candidates` 和 `background_switch_mode` 是否正确
+9. 模板内容是否命中了插件的最小安全校验
+10. 输入结果链前导部分是否真的是连续 `Plain`
 
-## 官方对照
+## 与官方实现的对应关系
 
-本插件当前实现对照了 AstrBot 官方文档和源码，关键点如下：
+本插件当前实现对照了 AstrBot 官方文档与 Core 行为，关键事实如下：
 
-- 官方文档支持 `html_render(template, data, options)`
-- `data` 确实是 Jinja2 渲染变量
-- AstrBot 默认 `t2i_word_threshold` 是 `150`
-- AstrBot Core 会把 `t2i_word_threshold` 最低保护到 `50`
-- `on_decorating_result` 钩子可以直接改结果链
-- 官方模板编辑器存在变量白名单限制，所以本插件从 `v3.0.0` 起不再依赖官方模板内容
+- 官方支持 `html_render(template, data, options)`
+- `data` 确实作为 Jinja2 模板变量进入渲染
+- 默认 `t2i_word_threshold` 为 `150`
+- Core 会把 `t2i_word_threshold` 最低保护到 `50`
+- `on_decorating_result` 可以直接改结果链
 
-因此当前方案不是修改 Core，而是彻底改为插件自维护模板、自维护变量、自执行渲染。
+所以这套实现是“在官方允许的插件能力范围内独立渲染”，不是对 Core 做侵入修改。
 
-## 安装
+## 示例
 
-1. 放入 AstrBot 插件目录：
+### 示例 1：最小正文模板
 
-```text
-data/plugins/astrbot_plugin_t2i_enhance
+```html
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Simple</title>
+</head>
+<body>
+  <article>{{ content | safe }}</article>
+</body>
+</html>
 ```
 
-2. 安装依赖：
+### 示例 2：带背景图和时间
 
-```bash
-pip install -r requirements.txt
+```html
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Card</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: white;
+      background:
+        linear-gradient(rgba(7, 12, 20, 0.45), rgba(7, 12, 20, 0.7))
+        {% if bg_url %}, url("{{ bg_url }}") center / cover no-repeat{% endif %};
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+    .wrap {
+      padding: 48px;
+    }
+    .meta {
+      opacity: 0.82;
+      margin-bottom: 18px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="meta">{{ datetime }}</div>
+    <article>{{ content | safe }}</article>
+  </div>
+</body>
+</html>
 ```
 
-3. 在 AstrBot WebUI 重载插件
+### 示例 3：配套自定义变量
 
-## 版本要求
+`custom_vars_json`：
 
-- AstrBot: `>=4.26,<5`
+```json
+{
+  "title": "日报",
+  "subtitle": "Daily Report"
+}
+```
 
-## 支持平台
+模板：
 
-见 [metadata.yaml](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/metadata.yaml:1)。
+```html
+<header>
+  <h1>{{ title }}</h1>
+  <p>{{ subtitle }}</p>
+</header>
+<article>{{ content | safe }}</article>
+```
 
 ## 变更记录
 

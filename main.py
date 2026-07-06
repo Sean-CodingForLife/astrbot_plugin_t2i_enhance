@@ -430,7 +430,7 @@ def should_render(context: Context, plugin_config: dict, event: AstrMessageEvent
     "t2i_enhance",
     "Codex",
     "T2I Enhance: self-managed HTML templates with backend-injected variables.",
-    "3.0.1",
+    "1.0.0",
 )
 class T2IEnhancePlugin(Star):
     def __init__(self, context: Context, config: dict):
