@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import bleach
 import markdown
 
@@ -64,14 +66,12 @@ MARKDOWN_EXTENSIONS = [
     "extra",
     "sane_lists",
     "nl2br",
-    "tables",
-    "fenced_code",
     "admonition",
-    "attr_list",
-    "def_list",
-    "footnotes",
     "toc",
 ]
+
+HTML_TAG_RE = re.compile(r"<[a-z][^>]*>", re.IGNORECASE)
+OFFICIAL_MARKDOWN_TEMPLATES = {"base", "astrbot_vitepress", "astrbot_powershell"}
 
 
 def markdown_to_safe_html(text: str) -> str:
@@ -90,17 +90,41 @@ def markdown_to_safe_html(text: str) -> str:
 
 
 def looks_like_html(text: str) -> bool:
-    return any(
-        token in text.lower()
-        for token in ("<p", "<h1", "<h2", "<ul", "<ol", "<pre", "<blockquote", "<table")
-    )
+    return bool(HTML_TAG_RE.search(text))
+
+
+def normalize_t2i_threshold(value: object) -> int:
+    return max(int(value), 50)
+
+
+def should_convert_for_t2i(context: Context, event: AstrMessageEvent, result) -> bool:
+    config = context.get_config(event.unified_msg_origin)
+
+    if not (((result.use_t2i_ is None) and config["t2i"]) or result.use_t2i_):
+        return False
+
+    if config.get("t2i_active_template", "base") in OFFICIAL_MARKDOWN_TEMPLATES:
+        return False
+
+    parts: list[str] = []
+    for comp in result.chain:
+        if isinstance(comp, Plain):
+            parts.append("\n\n" + comp.text)
+        else:
+            break
+
+    plain_str = "".join(parts)
+    if not plain_str:
+        return False
+
+    return len(plain_str) > normalize_t2i_threshold(config["t2i_word_threshold"])
 
 
 @register(
     "t2i_enhance",
     "Codex",
     "T2I Enhance: render Markdown structure before AstrBot text-to-image.",
-    "1.0.0",
+    "1.0.1",
 )
 class T2IEnhancePlugin(Star):
     def __init__(self, context: Context):
@@ -112,8 +136,7 @@ class T2IEnhancePlugin(Star):
         if result is None or not result.chain:
             return
 
-        should_t2i = getattr(result, "use_t2i_", None)
-        if should_t2i is False:
+        if not should_convert_for_t2i(self.context, event, result):
             return
 
         changed = False

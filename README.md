@@ -2,7 +2,9 @@
 
 Render Markdown structure before AstrBot text-to-image generation.
 
-AstrBot's default T2I flow may pass Markdown text directly into an HTML template, which can make headings, lists, quotes, code blocks, and tables look like one flat block of text. This plugin converts outgoing plain Markdown text into safe HTML before T2I rendering, so templates using `{{ text | safe }}` can preserve the original document structure.
+This plugin is only for custom AstrBot T2I templates that render `text` as raw HTML. It converts outgoing Markdown into sanitized HTML right before AstrBot runs text-to-image, so templates using `{{ text | safe }}` can preserve headings, lists, quotes, code blocks, and tables.
+
+It does not target AstrBot's official built-in templates such as `base`, `astrbot_vitepress`, or `astrbot_powershell`. Those templates already parse Markdown themselves with `marked.parse(...)`, so pre-rendering Markdown to HTML would conflict with the official flow.
 
 ## Features
 
@@ -10,6 +12,8 @@ AstrBot's default T2I flow may pass Markdown text directly into an HTML template
 - Preserves headings, paragraphs, lists, quotes, code blocks, tables, footnotes, and admonitions
 - Sanitizes rendered HTML with `bleach`
 - Skips content that already looks like rendered HTML
+- Mirrors AstrBot's own T2I gating, including `t2i`, `use_t2i_`, the message-chain shape, and `t2i_word_threshold`
+- Ignores AstrBot's official Markdown-driven templates to avoid double rendering
 - Works with custom HTML T2I templates that use `{{ text | safe }}`
 
 ## Installation
@@ -35,7 +39,7 @@ AstrBot's default T2I flow may pass Markdown text directly into an HTML template
 
 ## Recommended T2I Template
 
-Keep your T2I HTML template using:
+Use a custom T2I template that renders `text` directly:
 
 ```html
 {{ text | safe }}
@@ -45,5 +49,7 @@ The plugin renders Markdown into sanitized HTML before AstrBot passes the text i
 
 ## Notes
 
-This plugin is designed for AstrBot's HTML-based T2I rendering flow. If your T2I setup uses a pure Pillow/local renderer instead of an HTML template renderer, the rendered HTML may not be displayed as intended.
+- This plugin only runs when AstrBot would already enter its T2I path and the plain-text payload length exceeds `t2i_word_threshold` (default `150`).
+- This plugin does not affect AstrBot's official built-in templates, because they already render Markdown inside the template.
+- If your T2I setup uses a non-HTML renderer, or a template that re-parses Markdown instead of rendering raw HTML, this plugin is not the right tool.
 

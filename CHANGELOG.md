@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.1 - 2026-07-06
+
+- Reworked the plugin to mirror AstrBot's own T2I gating before converting Markdown.
+- Prevented raw HTML from leaking into normal text replies when the payload does not enter T2I rendering.
+- Limited the plugin to custom templates that directly render `{{ text | safe }}`.
+- Excluded AstrBot's official built-in templates, which already parse Markdown internally.
+- Updated README and metadata to match actual AstrBot behavior.
+
 ## v1.0.0 - 2026-07-06
 
 - Initial release.
