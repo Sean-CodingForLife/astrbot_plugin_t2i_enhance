@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="T2I Enhance icon">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#bg)"/>
+  <rect x="40" y="36" width="104" height="140" rx="18" fill="url(#card)" opacity="0.98"/>
+  <rect x="58" y="62" width="68" height="10" rx="5" fill="#1d4ed8"/>
+  <rect x="58" y="86" width="54" height="10" rx="5" fill="#0f766e"/>
+  <rect x="58" y="110" width="70" height="10" rx="5" fill="#94a3b8"/>
+  <rect x="58" y="134" width="46" height="10" rx="5" fill="#94a3b8"/>
+  <path d="M168 70h46c8.837 0 16 7.163 16 16v84c0 8.837-7.163 16-16 16h-58c-8.837 0-16-7.163-16-16v-72z" fill="#0b1220" opacity="0.9"/>
+  <rect x="168" y="70" width="46" height="18" rx="9" fill="#38bdf8" opacity="0.95"/>
+  <circle cx="180" cy="129" r="14" fill="#f8fafc"/>
+  <path d="M199 160l-18-18 10-10 18 18-1 11z" fill="#f59e0b"/>
+  <path d="M161 200l18-34h24l-18 34z" fill="#f8fafc" opacity="0.96"/>
+  <path d="M100 198h46" stroke="#f8fafc" stroke-width="12" stroke-linecap="round"/>
+  <path d="M123 175v46" stroke="#f8fafc" stroke-width="12" stroke-linecap="round"/>
+</svg>
