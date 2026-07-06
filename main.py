@@ -600,6 +600,11 @@ class T2IEnhancePlugin(Star):
                 rendered_content,
                 profile,
             )
+            logger.info(
+                "[t2i_enhance] rendering plugin template: %s, chars=%s",
+                profile["name"],
+                len(plain_text),
+            )
             rendered_image = await self.html_render(
                 template_html,
                 template_data,
@@ -615,7 +620,7 @@ class T2IEnhancePlugin(Star):
         event.track_temporary_local_file(rendered_image)
         result.chain = [Image.fromFileSystem(rendered_image), *suffix_chain]
         result.use_t2i_ = False
-        logger.debug(
+        logger.info(
             "[t2i_enhance] rendered image with plugin template: %s",
             profile["name"],
         )
