@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import random
 import re
-from datetime import datetime
+from datetime import datetime, timezone, tzinfo
 from typing import Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
@@ -377,17 +377,16 @@ def parse_screenshot_options(raw: str) -> dict[str, Any]:
     return options
 
 
-def resolve_timezone(config: dict) -> ZoneInfo:
+def resolve_timezone(config: dict) -> tzinfo:
     timezone_name = str(config.get("timezone", DEFAULT_TIMEZONE)).strip() or DEFAULT_TIMEZONE
     try:
         return ZoneInfo(timezone_name)
     except Exception:
         logger.warning(
-            "[t2i_enhance] invalid timezone %s, fallback to %s.",
+            "[t2i_enhance] invalid timezone %s, fallback to UTC.",
             timezone_name,
-            DEFAULT_TIMEZONE,
         )
-        return ZoneInfo(DEFAULT_TIMEZONE)
+        return timezone.utc
 
 
 def collect_leading_plain_text(result) -> tuple[str, int]:
@@ -413,9 +412,10 @@ def should_render(context: Context, plugin_config: dict, event: AstrMessageEvent
     if not plugin_config.get("plugin_enabled", True):
         return False
 
-    astrbot_config = context.get_config(event.unified_msg_origin)
+    astrbot_config = context.get_config(event.unified_msg_origin) or {}
+    use_t2i = getattr(result, "use_t2i_", None)
 
-    if not (((result.use_t2i_ is None) and astrbot_config["t2i"]) or result.use_t2i_):
+    if not (((use_t2i is None) and astrbot_config.get("t2i")) or use_t2i):
         return False
 
     plain_text, _ = collect_leading_plain_text(result)
@@ -569,8 +569,7 @@ class T2IEnhancePlugin(Star):
             rendered_image = await self.html_render(
                 template_html,
                 template_data,
-                return_url=False,
-                options=parse_screenshot_options(profile.get("screenshot_options_json", "{}")),
+                parse_screenshot_options(profile.get("screenshot_options_json", "{}")),
             )
         except Exception:
             logger.exception("[t2i_enhance] failed to render active T2I template.")
