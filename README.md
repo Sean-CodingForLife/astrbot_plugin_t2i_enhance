@@ -1,145 +1,186 @@
 # T2I Enhance
 
-> 为自定义 AstrBot HTML T2I 模板预渲染 Markdown，保留结构、控制清洗范围，并避免污染官方内置模板流程。
+> 基于 `html_render(template, data, options)` 的 AstrBot T2I 增强插件。
 
 ![T2I Enhance Icon](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/icon.svg)
 
 ## 简介
 
-`T2I Enhance` 是一个面向 AstrBot 文转图链路的增强插件。
+`T2I Enhance` 是一套完整的插件侧 HTML 渲染架构，不依赖旧式“改写文本后再交给 Core 猜怎么处理”的做法。
 
-它的目标不是替代 AstrBot 官方内置模板，而是服务于这一类自定义模板：
+插件会在命中 AstrBot T2I 条件后：
 
-```html
-{{ text | safe }}
+1. 提取前导 `Plain` 文本
+2. 选择模板
+3. 构造模板变量 `data`
+4. 调用 `self.html_render(template, data, options)`
+5. 将结果直接替换为图片消息
+
+这个插件的唯一核心就是：**用插件后端直接驱动 HTML 模板渲染。**
+
+## 架构
+
+基础调用方式：
+
+```python
+await self.html_render(template, data, options=options)
 ```
 
-当你的 T2I 模板直接把 `text` 当 HTML 渲染时，这个插件会在 AstrBot 真正进入 T2I 流程之前，把 Markdown 转成经过 `bleach` 清洗的 HTML，从而保留标题、列表、引用、代码块、表格等结构。
+其中：
 
-## 适用场景
+- `template`: 完整 HTML 模板
+- `data`: 后端注入的模板变量
+- `options`: 截图参数
 
-- 你正在使用自定义 HTML T2I 模板
-- 模板直接渲染 `{{ text | safe }}`
-- 你希望 Markdown 在图片里保持结构，而不是变成一整块纯文本
-- 你希望可配置地控制允许的标签、属性、协议和 HTML 检测规则
+插件不是只传一个 `text`，而是自己构造完整变量集，再把渲染结果直接回填到消息链。
 
-## 不适用场景
+## 核心能力
 
-- AstrBot 官方内置模板：`base`、`astrbot_vitepress`、`astrbot_powershell`
-- 模板内部还会再次解析 Markdown
-- 非 HTML 渲染器
-- 不希望在 T2I 前对输出文本做任何结构化处理
+- 自主接管符合条件的 AstrBot T2I 渲染
+- 候选模板切换
+- 后端变量注入
+- 背景图变量注入
+- 日期时间变量注入
+- 自定义 JSON 变量注入
+- Markdown 转安全 HTML
+- 原始 HTML 清洗
+- 截图参数透传
 
-## 功能特性
+## 模板切换
 
-- 在 T2I 渲染前把 Markdown 转成安全 HTML
-- 保留标题、段落、列表、引用、代码块、表格、脚注、admonition 等结构
-- 使用 `bleach` 清洗渲染后的 HTML
-- 已经像 HTML 的内容可以跳过转换
-- 复刻 AstrBot 当前 T2I 触发条件，包括 `t2i`、`use_t2i_`、消息链结构和 `t2i_word_threshold`
-- 默认排除 AstrBot 官方内置 Markdown 模板，避免重复渲染
-- 通过插件设置暴露 Markdown 扩展、标签白名单、属性白名单、协议白名单和 HTML 检测规则
+支持三种模板切换模式：
 
-## 兼容性
+- `fixed`: 固定使用第一个启用模板
+- `random`: 每次随机选择
+- `sequential`: 按顺序轮换，并持久化记录当前位置
 
-### AstrBot 版本
+## 模板变量
 
-- 推荐：`>=4.26,<5`
+插件会注入这些变量：
 
-### 平台
+- `text`
+- `content`
+- `html`
+- `template_name`
+- `bg_url`
+- `date`
+- `time`
+- `datetime`
+- `timestamp`
+- `timezone`
+- `year`
+- `month`
+- `day`
+- `hour`
+- `minute`
+- `second`
+- `weekday`
 
-这个插件本身不直接依赖某个消息平台的专属能力，它作用在 AstrBot 的 T2I 文本处理链路上。
+`custom_vars_json` 中的键值也会一起注入。
 
-理论上，只要对应平台上的消息最终会进入 AstrBot 的标准 T2I 流程，就可以使用。当前元数据里已补充常见平台声明，具体仍以你的 AstrBot 运行链路为准。
+## 配置
 
-## 安装
-
-1. 将当前目录放入 AstrBot 插件目录：
-
-   ```text
-   data/plugins/astrbot_plugin_t2i_enhance
-   ```
-
-2. 安装依赖：
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. 在 AstrBot WebUI 中重载插件。
-
-## 快速开始
-
-推荐模板写法：
-
-```html
-{{ text | safe }}
-```
-
-推荐流程：
-
-1. 在 AstrBot 中启用 T2I。
-2. 使用一个自定义 HTML 模板，并确保模板直接渲染 `text`。
-3. 启用本插件。
-4. 发送超过 `t2i_word_threshold` 的 Markdown 文本，验证图片内是否保留结构。
-
-## 插件设置
-
-插件配置定义位于 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1)。
+配置定义见 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1)。
 
 主要配置项：
 
-- `plugin_enabled`：是否启用插件
-- `skip_existing_html`：检测到消息已经像 HTML 时是否跳过转换
-- `excluded_templates`：永远不预渲染的模板名列表
-- `markdown_extensions`：传给 Python-Markdown 的扩展列表
-- `allowed_protocols`：`bleach` 清洗时允许保留的 URL 协议
-- `allowed_tags`：清洗后允许保留的 HTML 标签
-- `allowed_attributes_json`：JSON 形式的标签属性白名单
-- `html_tag_pattern`：用于检测现有 HTML 的 regex
+- `plugin_enabled`
+- `respect_official_excluded_templates`
+- `excluded_templates`
+- `template_switch_mode`
+- `inject_datetime`
+- `timezone`
+- `datetime_format`
+- `date_format`
+- `time_format`
+- `custom_vars_json`
+- `global_background_candidates`
+- `screenshot_options_json`
+- `markdown_extensions`
+- `allowed_protocols`
+- `allowed_tags`
+- `allowed_attributes_json`
+- `template_candidates`
 
-## 工作原理
+## 模板候选
 
-这个插件不会盲目改写所有文本，而是尽量与当前 AstrBot 的官方行为对齐：
+每个候选模板支持：
 
-1. 读取当前会话配置。
-2. 判断本次消息是否真的会进入 T2I 流程。
-3. 排除官方内置 Markdown 模板。
-4. 复用 AstrBot 的前置 `Plain` 文本链路和 `t2i_word_threshold` 逻辑。
-5. 仅在满足条件时把 Markdown 转成清洗后的 HTML。
+- `enabled`
+- `name`
+- `title`
+- `subtitle`
+- `footer_left`
+- `footer_right`
+- `render_markdown`
+- `sanitize_html_input`
+- `background_candidates`
+- `template_html`
 
-## 项目结构
+## 模板示例
 
-```text
-.
-├─ main.py
-├─ metadata.yaml
-├─ _conf_schema.json
-├─ requirements.txt
-├─ icon.svg
-└─ CHANGELOG.md
+正文通常这样输出：
+
+```html
+<section class="content">
+  {{ content | safe }}
+</section>
 ```
 
-## 开发
+背景图通常这样使用：
 
-本项目是一个轻量 AstrBot 插件仓库，当前没有引入复杂的构建流程。
+```html
+<div class="hero" style="background-image: url('{{ bg_url }}');">
+```
 
-本地开发建议：
+日期时间通常这样使用：
 
-1. 修改代码或配置 schema。
-2. 在 AstrBot WebUI 中重载插件。
-3. 使用自定义 HTML T2I 模板联调。
-4. 检查短文本、长文本、官方模板、自定义模板四种路径。
+```html
+<span>{{ date }}</span>
+<span>{{ time }}</span>
+<span>{{ datetime }}</span>
+```
 
-## 已知限制
+## 官方对照
 
-- 仅在 AstrBot 实际进入 T2I 流程时生效
-- 默认不接管官方内置 Markdown 模板
-- `allowed_attributes_json` 使用 JSON 文本配置，是为了更稳地兼容当前 AstrBot 插件配置 schema 约束
+本插件当前实现对照了 AstrBot 官方文档和源码，关键点如下：
+
+- 官方文档支持 `html_render(template, data, options)`
+- `data` 确实是 Jinja2 渲染变量
+- AstrBot 默认 `t2i_word_threshold` 是 `150`
+- Core 会把阈值最小保护到 `50`
+- `ResultDecorateStage` 会缓存 `t2i_active_template`
+- `on_decorating_result` 钩子可以直接改结果链
+
+所以动态模板、动态变量、动态背景图这类需求，放在插件里自己 `html_render` 是正路。
+
+## 安装
+
+1. 放入 AstrBot 插件目录：
+
+```text
+data/plugins/astrbot_plugin_t2i_enhance
+```
+
+2. 安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+3. 在 AstrBot WebUI 重载插件
+
+## 版本要求
+
+- AstrBot: `>=4.26,<5`
+
+## 支持平台
+
+见 [metadata.yaml](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/metadata.yaml:1)。
 
 ## 变更记录
 
-详见 [CHANGELOG.md](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/CHANGELOG.md:1)。
+见 [CHANGELOG.md](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/CHANGELOG.md:1)。
 
 ## 许可证
 
