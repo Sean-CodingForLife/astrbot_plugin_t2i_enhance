@@ -408,22 +408,56 @@ def is_allowed_url(url: str, config: dict) -> bool:
     return parsed.scheme.lower() in set(normalize_allowed_protocols(config))
 
 
+def config_get(config: Any, key: str, fallback: Any = None) -> Any:
+    if hasattr(config, "get"):
+        try:
+            return config.get(key, fallback)
+        except TypeError:
+            try:
+                value = config.get(key)
+                return fallback if value is None else value
+            except Exception:
+                return fallback
+        except Exception:
+            return fallback
+    try:
+        return config[key]
+    except Exception:
+        return fallback
+
+
 def should_render(context: Context, plugin_config: dict, event: AstrMessageEvent, result) -> bool:
     if not plugin_config.get("plugin_enabled", True):
+        logger.debug("[t2i_enhance] skip: plugin disabled.")
         return False
 
     astrbot_config = context.get_config(event.unified_msg_origin) or {}
     use_t2i = getattr(result, "use_t2i_", None)
+    t2i_enabled = bool(config_get(astrbot_config, "t2i", False))
 
-    if not (((use_t2i is None) and astrbot_config.get("t2i")) or use_t2i):
+    if not (((use_t2i is None) and t2i_enabled) or use_t2i):
+        logger.debug(
+            "[t2i_enhance] skip: T2I not requested. use_t2i=%s, global_t2i=%s",
+            use_t2i,
+            t2i_enabled,
+        )
         return False
 
     plain_text, _ = collect_leading_plain_text(result)
     if not plain_text:
+        logger.debug("[t2i_enhance] skip: no leading Plain text in result chain.")
         return False
 
-    threshold = normalize_t2i_threshold(astrbot_config.get("t2i_word_threshold"))
-    return len(plain_text) > threshold
+    threshold = normalize_t2i_threshold(config_get(astrbot_config, "t2i_word_threshold"))
+    if len(plain_text) <= threshold:
+        logger.debug(
+            "[t2i_enhance] skip: text length %s <= threshold %s.",
+            len(plain_text),
+            threshold,
+        )
+        return False
+
+    return True
 
 
 @register(
@@ -569,9 +603,11 @@ class T2IEnhancePlugin(Star):
             rendered_image = await self.html_render(
                 template_html,
                 template_data,
-                parse_screenshot_options(profile.get("screenshot_options_json", "{}")),
+                return_url=False,
+                options=parse_screenshot_options(profile.get("screenshot_options_json", "{}")),
             )
         except Exception:
+            result.use_t2i_ = False
             logger.exception("[t2i_enhance] failed to render active T2I template.")
             return
 
