@@ -2,145 +2,245 @@
   "plugin_enabled": {
     "description": "是否启用 T2I Enhance 接管渲染。",
     "type": "bool",
-    "hint": "开启后，插件会直接接管当前 AstrBot 已启用的 T2I 模板渲染流程。",
+    "hint": "开启后，插件会在命中 T2I 条件时，按当前官方模板名查找绑定配置并接管渲染。",
     "default": true
   },
-  "inject_datetime": {
-    "description": "是否注入当前日期和时间变量。",
-    "type": "bool",
-    "hint": "开启后，模板可直接使用 date、time、datetime、timestamp 等变量。",
-    "default": true
-  },
-  "timezone": {
-    "description": "日期和时间使用的时区。",
-    "type": "string",
-    "hint": "使用 IANA 时区名称，例如 Asia/Shanghai、UTC、America/Los_Angeles。",
-    "default": "Asia/Shanghai"
-  },
-  "datetime_format": {
-    "description": "datetime 变量格式。",
-    "type": "string",
-    "hint": "使用 Python strftime 格式，例如 %Y-%m-%d %H:%M:%S。",
-    "default": "%Y-%m-%d %H:%M:%S"
-  },
-  "date_format": {
-    "description": "date 变量格式。",
-    "type": "string",
-    "hint": "使用 Python strftime 格式，例如 %Y-%m-%d。",
-    "default": "%Y-%m-%d"
-  },
-  "time_format": {
-    "description": "time 变量格式。",
-    "type": "string",
-    "hint": "使用 Python strftime 格式，例如 %H:%M:%S。",
-    "default": "%H:%M:%S"
-  },
-  "render_markdown": {
-    "description": "是否先把原始文本渲染为 Markdown HTML。",
-    "type": "bool",
-    "hint": "开启后，会先把前导文本转换为 Markdown HTML，再注入到模板里的 content/html。",
-    "default": true
-  },
-  "sanitize_html_input": {
-    "description": "当 render_markdown 为 false 时，是否继续清洗输入 HTML。",
-    "type": "bool",
-    "hint": "关闭后，原始 HTML 会直接进入模板变量。",
-    "default": true
-  },
-  "background_candidates": {
-    "description": "背景图候选 URL 列表。",
-    "type": "list",
-    "hint": "如果模板中使用 {{ bg_url }}，插件会从这里随机选择一个值注入。",
-    "default": []
-  },
-  "custom_vars_json": {
-    "description": "注入到模板中的自定义变量。",
-    "type": "text",
-    "hint": "填写 JSON 对象，键名会直接成为模板变量，例如 {\"site_name\":\"AstrBot\"}。",
-    "editor_mode": true,
-    "editor_language": "json",
-    "default": "{\n  \"site_name\": \"AstrBot\",\n  \"theme_name\": \"T2I Enhance\"\n}"
-  },
-  "screenshot_options_json": {
-    "description": "html_render 截图选项。",
-    "type": "text",
-    "hint": "填写 Playwright screenshot 参数 JSON。默认已启用 png、full_page 和 disabled animations。",
-    "editor_mode": true,
-    "editor_language": "json",
-    "default": "{\n  \"type\": \"png\",\n  \"full_page\": true,\n  \"animations\": \"disabled\"\n}"
-  },
-  "markdown_extensions": {
-    "description": "Markdown 渲染扩展列表。",
-    "type": "list",
-    "hint": "这些值会直接传给 markdown.markdown(..., extensions=[...])。",
+  "template_profiles": {
+    "description": "按官方模板名绑定的增强配置列表。",
+    "type": "template_list",
+    "hint": "当前激活模板命中对应 template_name 时，插件就使用这组增强配置。",
+    "templates": {
+      "template_profile": {
+        "name": "模板绑定配置",
+        "hint": "一条配置对应一个官方 T2I 模板名。",
+        "display_item": "template_name",
+        "hide_hint_in_list": true,
+        "items": {
+          "__template_key": {
+            "type": "string",
+            "default": "template_profile",
+            "invisible": true
+          },
+          "enabled": {
+            "description": "是否启用这条绑定配置。",
+            "type": "bool",
+            "default": true
+          },
+          "template_name": {
+            "description": "绑定的官方 T2I 模板名。",
+            "type": "string",
+            "hint": "必须与 AstrBot 当前激活模板名一致，例如 base、test。",
+            "default": "base"
+          },
+          "inject_datetime": {
+            "description": "是否注入当前日期和时间变量。",
+            "type": "bool",
+            "hint": "开启后，模板可直接使用 date、time、datetime、timestamp 等变量。",
+            "default": true
+          },
+          "timezone": {
+            "description": "日期和时间使用的时区。",
+            "type": "string",
+            "hint": "使用 IANA 时区名称，例如 Asia/Shanghai、UTC。",
+            "default": "Asia/Shanghai"
+          },
+          "datetime_format": {
+            "description": "datetime 变量格式。",
+            "type": "string",
+            "hint": "使用 Python strftime 格式，例如 %Y-%m-%d %H:%M:%S。",
+            "default": "%Y-%m-%d %H:%M:%S"
+          },
+          "date_format": {
+            "description": "date 变量格式。",
+            "type": "string",
+            "hint": "使用 Python strftime 格式，例如 %Y-%m-%d。",
+            "default": "%Y-%m-%d"
+          },
+          "time_format": {
+            "description": "time 变量格式。",
+            "type": "string",
+            "hint": "使用 Python strftime 格式，例如 %H:%M:%S。",
+            "default": "%H:%M:%S"
+          },
+          "render_markdown": {
+            "description": "是否先把原始文本渲染为 Markdown HTML。",
+            "type": "bool",
+            "hint": "开启后，会先把前导文本转换为 Markdown HTML，再注入到模板里的 content/html。",
+            "default": true
+          },
+          "sanitize_html_input": {
+            "description": "当 render_markdown 为 false 时，是否继续清洗输入 HTML。",
+            "type": "bool",
+            "hint": "关闭后，原始 HTML 会直接进入模板变量。",
+            "default": true
+          },
+          "background_candidates": {
+            "description": "背景图候选 URL 列表。",
+            "type": "list",
+            "hint": "如果模板中使用 {{ bg_url }}，插件会从这里随机选择一个值注入。",
+            "default": []
+          },
+          "custom_vars_json": {
+            "description": "注入到模板中的自定义变量。",
+            "type": "text",
+            "hint": "填写 JSON 对象，键名会直接成为模板变量，例如 {\"site_name\":\"AstrBot\"}。",
+            "editor_mode": true,
+            "editor_language": "json",
+            "default": "{\n  \"site_name\": \"AstrBot\",\n  \"theme_name\": \"T2I Enhance\"\n}"
+          },
+          "screenshot_options_json": {
+            "description": "html_render 截图选项。",
+            "type": "text",
+            "hint": "填写 Playwright screenshot 参数 JSON。默认已启用 png、full_page 和 disabled animations。",
+            "editor_mode": true,
+            "editor_language": "json",
+            "default": "{\n  \"type\": \"png\",\n  \"full_page\": true,\n  \"animations\": \"disabled\"\n}"
+          },
+          "markdown_extensions": {
+            "description": "Markdown 渲染扩展列表。",
+            "type": "list",
+            "hint": "这些值会直接传给 markdown.markdown(..., extensions=[...])。",
+            "default": [
+              "extra",
+              "sane_lists",
+              "nl2br",
+              "admonition",
+              "toc"
+            ]
+          },
+          "allowed_protocols": {
+            "description": "HTML 清洗时允许保留的 URL 协议。",
+            "type": "list",
+            "hint": "通常保留 http、https、data。",
+            "default": [
+              "http",
+              "https",
+              "data"
+            ]
+          },
+          "allowed_tags": {
+            "description": "HTML 清洗后允许保留的标签。",
+            "type": "list",
+            "hint": "用于 Markdown 转 HTML 和原始 HTML 清洗。",
+            "default": [
+              "a",
+              "abbr",
+              "blockquote",
+              "br",
+              "code",
+              "del",
+              "details",
+              "div",
+              "em",
+              "h1",
+              "h2",
+              "h3",
+              "h4",
+              "h5",
+              "h6",
+              "hr",
+              "img",
+              "ins",
+              "kbd",
+              "li",
+              "mark",
+              "ol",
+              "p",
+              "pre",
+              "s",
+              "span",
+              "strong",
+              "sub",
+              "summary",
+              "sup",
+              "table",
+              "tbody",
+              "td",
+              "th",
+              "thead",
+              "tr",
+              "ul"
+            ]
+          },
+          "allowed_attributes_json": {
+            "description": "HTML 清洗后允许保留的属性白名单。",
+            "type": "text",
+            "hint": "填写 JSON 对象，例如 {\"a\": [\"href\", \"title\"]}。",
+            "editor_mode": true,
+            "editor_language": "json",
+            "default": "{\n  \"a\": [\"href\", \"title\"],\n  \"img\": [\"src\", \"alt\", \"title\"],\n  \"code\": [\"class\"],\n  \"pre\": [\"class\"],\n  \"span\": [\"class\"],\n  \"div\": [\"class\"],\n  \"th\": [\"align\"],\n  \"td\": [\"align\"]\n}"
+          }
+        }
+      }
+    },
     "default": [
-      "extra",
-      "sane_lists",
-      "nl2br",
-      "admonition",
-      "toc"
+      {
+        "__template_key": "template_profile",
+        "enabled": true,
+        "template_name": "base",
+        "inject_datetime": true,
+        "timezone": "Asia/Shanghai",
+        "datetime_format": "%Y-%m-%d %H:%M:%S",
+        "date_format": "%Y-%m-%d",
+        "time_format": "%H:%M:%S",
+        "render_markdown": true,
+        "sanitize_html_input": true,
+        "background_candidates": [],
+        "custom_vars_json": "{\n  \"site_name\": \"AstrBot\",\n  \"theme_name\": \"T2I Enhance\"\n}",
+        "screenshot_options_json": "{\n  \"type\": \"png\",\n  \"full_page\": true,\n  \"animations\": \"disabled\"\n}",
+        "markdown_extensions": [
+          "extra",
+          "sane_lists",
+          "nl2br",
+          "admonition",
+          "toc"
+        ],
+        "allowed_protocols": [
+          "http",
+          "https",
+          "data"
+        ],
+        "allowed_tags": [
+          "a",
+          "abbr",
+          "blockquote",
+          "br",
+          "code",
+          "del",
+          "details",
+          "div",
+          "em",
+          "h1",
+          "h2",
+          "h3",
+          "h4",
+          "h5",
+          "h6",
+          "hr",
+          "img",
+          "ins",
+          "kbd",
+          "li",
+          "mark",
+          "ol",
+          "p",
+          "pre",
+          "s",
+          "span",
+          "strong",
+          "sub",
+          "summary",
+          "sup",
+          "table",
+          "tbody",
+          "td",
+          "th",
+          "thead",
+          "tr",
+          "ul"
+        ],
+        "allowed_attributes_json": "{\n  \"a\": [\"href\", \"title\"],\n  \"img\": [\"src\", \"alt\", \"title\"],\n  \"code\": [\"class\"],\n  \"pre\": [\"class\"],\n  \"span\": [\"class\"],\n  \"div\": [\"class\"],\n  \"th\": [\"align\"],\n  \"td\": [\"align\"]\n}"
+      }
     ]
-  },
-  "allowed_protocols": {
-    "description": "HTML 清洗时允许保留的 URL 协议。",
-    "type": "list",
-    "hint": "通常保留 http、https、data。",
-    "default": [
-      "http",
-      "https",
-      "data"
-    ]
-  },
-  "allowed_tags": {
-    "description": "HTML 清洗后允许保留的标签。",
-    "type": "list",
-    "hint": "用于 Markdown 转 HTML 和原始 HTML 清洗。",
-    "default": [
-      "a",
-      "abbr",
-      "blockquote",
-      "br",
-      "code",
-      "del",
-      "details",
-      "div",
-      "em",
-      "h1",
-      "h2",
-      "h3",
-      "h4",
-      "h5",
-      "h6",
-      "hr",
-      "img",
-      "ins",
-      "kbd",
-      "li",
-      "mark",
-      "ol",
-      "p",
-      "pre",
-      "s",
-      "span",
-      "strong",
-      "sub",
-      "summary",
-      "sup",
-      "table",
-      "tbody",
-      "td",
-      "th",
-      "thead",
-      "tr",
-      "ul"
-    ]
-  },
-  "allowed_attributes_json": {
-    "description": "HTML 清洗后允许保留的属性白名单。",
-    "type": "text",
-    "hint": "填写 JSON 对象，例如 {\"a\": [\"href\", \"title\"]}。",
-    "editor_mode": true,
-    "editor_language": "json",
-    "default": "{\n  \"a\": [\"href\", \"title\"],\n  \"img\": [\"src\", \"alt\", \"title\"],\n  \"code\": [\"class\"],\n  \"pre\": [\"class\"],\n  \"span\": [\"class\"],\n  \"div\": [\"class\"],\n  \"th\": [\"align\"],\n  \"td\": [\"align\"]\n}"
   }
 }

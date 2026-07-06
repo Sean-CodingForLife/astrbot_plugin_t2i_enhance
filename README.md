@@ -1,23 +1,25 @@
 # T2I Enhance
 
-> 插件启动后直接接管当前 AstrBot 已启用的 T2I 模板，并通过 `html_render(template, data, options)` 注入增强变量。
+> 插件启动后会按当前 AstrBot 官方 T2I 模板名，匹配对应的增强配置组，再通过 `html_render(template, data, options)` 接管渲染。
 
 ![T2I Enhance Icon](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/icon.svg)
 
 ## 简介
 
-`T2I Enhance` 不再区分“插件模板”和“官方模板来源”。
+`T2I Enhance` 现在不是“全局一套增强配置”。
 
-现在的工作方式只有一条：
+现在的工作方式是：
 
-1. AstrBot 里先选好你当前正在使用的 T2I 模板
+1. AstrBot 里先选好当前正在使用的官方 T2I 模板
 2. 插件在结果装饰阶段接管渲染
-3. 插件读取当前激活的官方 T2I 模板内容
-4. 插件构造增强后的 `data`
-5. 插件调用 `html_render(template, data, options)`
-6. 插件直接把结果替换成图片
+3. 插件读取当前激活模板名
+4. 插件在自己的 `template_profiles` 里找到同名绑定配置
+5. 插件读取当前官方模板 HTML
+6. 插件构造这一组模板专属的增强变量
+7. 插件调用 `html_render(template, data, options)`
+8. 插件直接把结果替换成图片
 
-也就是说，**模板管理仍然在 AstrBot 原来的 T2I 模板系统里，增强渲染能力交给插件。**
+也就是说，**模板 HTML 仍然在 AstrBot 官方模板系统里维护，插件只负责“按模板名绑定增强配置”并接管渲染。**
 
 ## 架构
 
@@ -29,13 +31,14 @@ await self.html_render(template, data, options=options)
 
 其中：
 
-- `template`: 当前 AstrBot 已启用的 T2I 模板内容
-- `data`: 插件后端注入的增强变量
-- `options`: 截图参数
+- `template`：当前 AstrBot 已启用的官方 T2I 模板内容
+- `data`：当前模板绑定配置组生成的增强变量
+- `options`：当前模板绑定配置组的截图参数
 
 ## 核心能力
 
 - 自动接管当前 AstrBot 已启用模板
+- 按官方模板名绑定不同的增强配置
 - 后端变量注入
 - 背景图变量注入
 - 日期时间变量注入
@@ -67,27 +70,33 @@ await self.html_render(template, data, options=options)
 - `weekday`
 - `version`
 
-`custom_vars_json` 中的键值也会一起注入。
+每条绑定配置里的 `custom_vars_json` 也会一起注入。
 
 ## 现在怎么用
-
-现在不需要在插件里再选一次官方模板名。
 
 你只需要：
 
 1. 在 AstrBot 设置里选好当前 T2I 模板
 2. 在官方“自定义文转图 HTML 模板”页面里编辑那个模板
-3. 在插件里只配置增强相关内容
+3. 在插件里新增一条 `template_profiles`
+4. 把这条配置的 `template_name` 填成同一个官方模板名
+5. 再按这条模板需要的变量、背景图、时间格式、Markdown 规则去配置
 
-插件会自动读取当前激活模板并接管渲染。
+当当前激活模板名命中这条绑定配置时，插件就会自动使用这一组增强参数。
 
 ## 插件配置
 
 配置定义见 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1)。
 
-主要配置项：
+顶层配置项：
 
 - `plugin_enabled`
+- `template_profiles`
+
+每条 `template_profiles` 绑定配置包含：
+
+- `enabled`
+- `template_name`
 - `inject_datetime`
 - `timezone`
 - `datetime_format`
@@ -143,6 +152,22 @@ await self.html_render(template, data, options=options)
 <p>{{ site_name }}</p>
 ```
 
+## 绑定示例
+
+比如你有两个官方模板：
+
+- `base`
+- `test`
+
+那插件里就可以配两条绑定：
+
+- `template_name = base`
+  这一条专门给 `base` 模板使用
+- `template_name = test`
+  这一条专门给 `test` 模板使用
+
+这样当 AstrBot 当前激活模板从 `base` 切到 `test` 时，插件也会自动切到 `test` 这一组增强配置。
+
 ## 官方对照
 
 本插件当前实现对照了 AstrBot 官方文档和源码，关键点如下：
@@ -152,8 +177,9 @@ await self.html_render(template, data, options=options)
 - AstrBot 默认 `t2i_word_threshold` 是 `150`
 - `ResultDecorateStage` 会缓存 `t2i_active_template`
 - `on_decorating_result` 钩子可以直接改结果链
+- `_conf_schema.json` 官方支持 `template_list`
 
-因此当前方案不是修改 Core，而是使用官方公开给插件的渲染能力来接管当前激活模板。
+因此当前方案不是修改 Core，而是使用官方公开给插件的渲染能力和配置能力来接管当前激活模板。
 
 ## 安装
 

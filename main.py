@@ -59,6 +59,63 @@ ALLOWED_SCREENSHOT_KEYS = {
     "scale",
     "timeout",
 }
+DEFAULT_ALLOWED_ATTRIBUTES = {
+    "a": ["href", "title"],
+    "img": ["src", "alt", "title"],
+    "code": ["class"],
+    "pre": ["class"],
+    "span": ["class"],
+    "div": ["class"],
+    "th": ["align"],
+    "td": ["align"],
+}
+DEFAULT_MARKDOWN_EXTENSIONS = [
+    "extra",
+    "sane_lists",
+    "nl2br",
+    "admonition",
+    "toc",
+]
+DEFAULT_ALLOWED_PROTOCOLS = ["http", "https", "data"]
+DEFAULT_ALLOWED_TAGS = [
+    "a",
+    "abbr",
+    "blockquote",
+    "br",
+    "code",
+    "del",
+    "details",
+    "div",
+    "em",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hr",
+    "img",
+    "ins",
+    "kbd",
+    "li",
+    "mark",
+    "ol",
+    "p",
+    "pre",
+    "s",
+    "span",
+    "strong",
+    "sub",
+    "summary",
+    "sup",
+    "table",
+    "tbody",
+    "td",
+    "th",
+    "thead",
+    "tr",
+    "ul",
+]
 
 
 def normalize_t2i_threshold(value: object) -> int:
@@ -81,16 +138,7 @@ def parse_json_config(raw: str, fallback: Any, label: str) -> Any:
 def normalize_allowed_attributes(config: dict) -> dict[str, list[str]]:
     raw = parse_json_config(
         config.get("allowed_attributes_json", ""),
-        {
-            "a": ["href", "title"],
-            "img": ["src", "alt", "title"],
-            "code": ["class"],
-            "pre": ["class"],
-            "span": ["class"],
-            "div": ["class"],
-            "th": ["align"],
-            "td": ["align"],
-        },
+        DEFAULT_ALLOWED_ATTRIBUTES,
         "allowed_attributes_json",
     )
     if not isinstance(raw, dict):
@@ -120,13 +168,13 @@ def normalize_allowed_tags(config: dict) -> set[str]:
 def normalize_allowed_protocols(config: dict) -> list[str]:
     raw = config.get("allowed_protocols", [])
     if not isinstance(raw, list):
-        return ["http", "https"]
+        return DEFAULT_ALLOWED_PROTOCOLS
     protocols = []
     for item in raw:
         protocol = str(item).strip().lower()
         if protocol and SAFE_PROTOCOL_RE.fullmatch(protocol):
             protocols.append(protocol)
-    return protocols or ["http", "https"]
+    return protocols or DEFAULT_ALLOWED_PROTOCOLS
 
 
 def normalize_markdown_extensions(config: dict) -> list[str]:
@@ -134,6 +182,60 @@ def normalize_markdown_extensions(config: dict) -> list[str]:
     if not isinstance(raw, list):
         return []
     return [str(ext).strip() for ext in raw if str(ext).strip()]
+
+
+def normalize_template_profiles(config: dict) -> list[dict[str, Any]]:
+    profiles = config.get("template_profiles", [])
+    if not isinstance(profiles, list):
+        return []
+
+    normalized: list[dict[str, Any]] = []
+    for item in profiles:
+        if not isinstance(item, dict):
+            continue
+
+        template_name = str(item.get("template_name", "")).strip()
+        if not template_name:
+            continue
+
+        normalized.append(
+            {
+                "template_name": template_name,
+                "enabled": bool(item.get("enabled", True)),
+                "inject_datetime": bool(item.get("inject_datetime", True)),
+                "timezone": str(item.get("timezone", DEFAULT_TIMEZONE)).strip()
+                or DEFAULT_TIMEZONE,
+                "datetime_format": str(
+                    item.get("datetime_format", "%Y-%m-%d %H:%M:%S"),
+                ),
+                "date_format": str(item.get("date_format", "%Y-%m-%d")),
+                "time_format": str(item.get("time_format", "%H:%M:%S")),
+                "render_markdown": bool(item.get("render_markdown", True)),
+                "sanitize_html_input": bool(item.get("sanitize_html_input", True)),
+                "background_candidates": item.get("background_candidates", []),
+                "custom_vars_json": str(item.get("custom_vars_json", "{}")),
+                "screenshot_options_json": str(
+                    item.get("screenshot_options_json", "{}"),
+                ),
+                "markdown_extensions": item.get(
+                    "markdown_extensions",
+                    list(DEFAULT_MARKDOWN_EXTENSIONS),
+                ),
+                "allowed_protocols": item.get(
+                    "allowed_protocols",
+                    list(DEFAULT_ALLOWED_PROTOCOLS),
+                ),
+                "allowed_tags": item.get("allowed_tags", list(DEFAULT_ALLOWED_TAGS)),
+                "allowed_attributes_json": str(
+                    item.get(
+                        "allowed_attributes_json",
+                        json.dumps(DEFAULT_ALLOWED_ATTRIBUTES, ensure_ascii=False),
+                    ),
+                ),
+            },
+        )
+
+    return normalized
 
 
 def markdown_to_safe_html(text: str, config: dict) -> str:
@@ -285,7 +387,7 @@ def should_render(context: Context, plugin_config: dict, event: AstrMessageEvent
     "t2i_enhance",
     "Codex",
     "T2I Enhance: take over AstrBot active T2I template rendering with backend-injected variables.",
-    "2.1.0",
+    "2.2.0",
 )
 class T2IEnhancePlugin(Star):
     def __init__(self, context: Context, config: dict):
@@ -300,17 +402,26 @@ class T2IEnhancePlugin(Star):
     def _resolve_template_html(self, event: AstrMessageEvent) -> str:
         return self.template_manager.get_template(self._resolve_active_template_name(event))
 
-    def _build_rendered_content(self, plain_text: str) -> str:
-        if self.config.get("render_markdown", True):
-            return markdown_to_safe_html(plain_text, self.config)
+    def _resolve_template_profile(self, event: AstrMessageEvent) -> dict[str, Any] | None:
+        active_template = self._resolve_active_template_name(event)
+        for profile in normalize_template_profiles(self.config):
+            if not profile.get("enabled", True):
+                continue
+            if profile["template_name"] == active_template:
+                return profile
+        return None
 
-        if self.config.get("sanitize_html_input", True):
-            return sanitize_html(plain_text, self.config)
+    def _build_rendered_content(self, plain_text: str, profile: dict[str, Any]) -> str:
+        if profile.get("render_markdown", True):
+            return markdown_to_safe_html(plain_text, profile)
+
+        if profile.get("sanitize_html_input", True):
+            return sanitize_html(plain_text, profile)
 
         return plain_text
 
-    def _select_background(self) -> str:
-        candidates = self.config.get("background_candidates", [])
+    def _select_background(self, profile: dict[str, Any]) -> str:
+        candidates = profile.get("background_candidates", [])
         if not isinstance(candidates, list):
             return ""
         valid = []
@@ -318,7 +429,7 @@ class T2IEnhancePlugin(Star):
             url = str(item).strip()
             if not url:
                 continue
-            if not is_allowed_url(url, self.config):
+            if not is_allowed_url(url, profile):
                 logger.warning("[t2i_enhance] ignore background with disallowed protocol: %s", url)
                 continue
             valid.append(url)
@@ -329,27 +440,28 @@ class T2IEnhancePlugin(Star):
         event: AstrMessageEvent,
         plain_text: str,
         rendered_content: str,
+        profile: dict[str, Any],
     ) -> dict[str, Any]:
-        now = datetime.now(resolve_timezone(self.config))
-        custom_vars = parse_custom_vars(self.config.get("custom_vars_json", "{}"))
+        now = datetime.now(resolve_timezone(profile))
+        custom_vars = parse_custom_vars(profile.get("custom_vars_json", "{}"))
 
         data: dict[str, Any] = {
             "text": plain_text,
             "content": rendered_content,
             "html": rendered_content,
             "template_name": self._resolve_active_template_name(event),
-            "bg_url": self._select_background(),
+            "bg_url": self._select_background(profile),
             "version": f"v{astrbot_version}",
         }
 
-        if self.config.get("inject_datetime", True):
+        if profile.get("inject_datetime", True):
             data.update(
                 {
                     "datetime": now.strftime(
-                        str(self.config.get("datetime_format", "%Y-%m-%d %H:%M:%S")),
+                        str(profile.get("datetime_format", "%Y-%m-%d %H:%M:%S")),
                     ),
-                    "date": now.strftime(str(self.config.get("date_format", "%Y-%m-%d"))),
-                    "time": now.strftime(str(self.config.get("time_format", "%H:%M:%S"))),
+                    "date": now.strftime(str(profile.get("date_format", "%Y-%m-%d"))),
+                    "time": now.strftime(str(profile.get("time_format", "%H:%M:%S"))),
                     "timestamp": int(now.timestamp()),
                     "timezone": str(now.tzinfo),
                     "year": now.year,
@@ -380,17 +492,28 @@ class T2IEnhancePlugin(Star):
         if not plain_text or leading_plain_count == 0:
             return
 
+        profile = self._resolve_template_profile(event)
+        if profile is None:
+            logger.debug(
+                "[t2i_enhance] no bound profile for active template: %s",
+                self._resolve_active_template_name(event),
+            )
+            return
+
         try:
             template_html = self._resolve_template_html(event)
-            rendered_content = self._build_rendered_content(plain_text)
-            template_data = self._build_template_data(event, plain_text, rendered_content)
+            rendered_content = self._build_rendered_content(plain_text, profile)
+            template_data = self._build_template_data(
+                event,
+                plain_text,
+                rendered_content,
+                profile,
+            )
             rendered_image = await self.html_render(
                 template_html,
                 template_data,
                 return_url=False,
-                options=parse_screenshot_options(
-                    self.config.get("screenshot_options_json", "{}"),
-                ),
+                options=parse_screenshot_options(profile.get("screenshot_options_json", "{}")),
             )
         except Exception:
             logger.exception("[t2i_enhance] failed to render active T2I template.")
