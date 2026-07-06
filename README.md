@@ -99,6 +99,52 @@ pip install -r requirements.txt
 - AstrBot：`>=4.26,<5`
 - 支持平台：见 [metadata.yaml](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/metadata.yaml:1)
 
+## 兼容性与部署
+
+### 部署形态
+
+这个插件不依赖 Docker 本身。
+
+理论上以下形态都可以使用：
+
+- AstrBot 源码部署
+- AstrBot Docker 部署
+- AstrBot 与 t2i server 分离部署
+- AstrBot 与 t2i server 使用 Docker Compose 联合部署
+
+决定插件能不能工作的关键，不是“是不是 Docker”，而是：
+
+- AstrBot 是否能正常调用 `html_render(template, data, options)`
+- 对应的 HTML 渲染服务是否可用
+
+### `remote` 与 `local`
+
+这里需要单独说清楚，因为它和官方默认 T2I 的直觉不完全一样。
+
+- 这个插件可以正常工作在 `remote` 路线下
+- 这个插件不能按“官方 local 文转图”那套逻辑保证可用
+
+原因是：
+
+- 插件调用的是 `html_render(...)`
+- `html_render(...)` 当前走的是 HTML 远程渲染链路
+- 官方 `t2i_strategy = local` 对应的是默认 `render_t2i()` 的本地 PIL 渲染，不是 HTML 模板渲染
+
+所以更准确地说：
+
+- `remote`：可用
+- 自部署 t2i server：可用
+- 官方远程 t2i 服务：可用
+- 仅启用官方 `local` PIL 文转图、但没有可用 HTML 渲染端点：不保证可用
+
+### 对实际使用的建议
+
+如果你准备长期使用这个插件，建议按下面理解：
+
+- 它兼容不同部署方式
+- 但它依赖的是 HTML 渲染服务能力，不是官方本地 PIL 文转图能力
+- 只要 HTML 渲染端点可用，Docker 与非 Docker 都不是问题
+
 ## 配置结构
 
 配置定义见 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1)。
@@ -519,7 +565,7 @@ AstrBot Core 会对 `t2i_word_threshold` 做最小保护：
 - Core 会把 `t2i_word_threshold` 最低保护到 `50`
 - `on_decorating_result` 可以直接改结果链
 
-所以这套实现是“在官方允许的插件能力范围内独立渲染”，不是对 Core 做侵入修改。
+所以这套实现是“在官方允许的插件能力范围内独立渲染”，不是对 Core 做侵入修改；同时它依赖的是 HTML 渲染链路，而不是官方 `local` PIL T2I 链路。
 
 ## 示例
 
