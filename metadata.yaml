@@ -1,7 +1,7 @@
 name: t2i_enhance
 display_name: T2I Enhance
-desc: Pre-render Markdown to sanitized HTML for custom AstrBot T2I templates that render {{ text | safe }} directly.
-help: Use this only with custom HTML T2I templates that directly render {{ text | safe }}. Official built-in templates are excluded.
-version: v1.0.1
+desc: Pre-render Markdown to sanitized HTML for custom AstrBot T2I templates that render {{ text | safe }} directly, with configurable sanitizer and template exclusions.
+help: Use this with custom HTML T2I templates that directly render {{ text | safe }}. Built-in Markdown templates stay excluded by default, and behavior can be tuned in plugin settings.
+version: v1.1.0
 author: Codex
 repo: https://github.com/Sean-CodingForLife/astrbot_plugin_t2i_enhance

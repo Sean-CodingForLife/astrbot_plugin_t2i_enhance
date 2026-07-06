@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.0 - 2026-07-06
+
+- Added plugin settings via `_conf_schema.json` for template exclusions, Markdown extensions, HTML detection, and sanitization allowlists.
+- Removed more hard-coded behavior from the plugin implementation and moved it into configurable settings.
+- Updated README and metadata to document the new configuration surface.
+
 ## v1.0.1 - 2026-07-06
 
 - Reworked the plugin to mirror AstrBot's own T2I gating before converting Markdown.

@@ -1,0 +1,130 @@
+{
+  "plugin_enabled": {
+    "description": "Enable Markdown-to-HTML conversion for eligible custom T2I templates.",
+    "type": "bool",
+    "hint": "Turn the plugin on or off without uninstalling it.",
+    "default": true
+  },
+  "skip_existing_html": {
+    "description": "Skip conversion when the plain text already looks like HTML.",
+    "type": "bool",
+    "hint": "Recommended for templates or messages that may already contain rendered HTML.",
+    "default": true
+  },
+  "excluded_templates": {
+    "description": "T2I template names that must never be pre-rendered by this plugin.",
+    "type": "list",
+    "hint": "Official built-in Markdown templates should stay here.",
+    "default": [
+      "base",
+      "astrbot_vitepress",
+      "astrbot_powershell"
+    ]
+  },
+  "markdown_extensions": {
+    "description": "Python-Markdown extensions used before sanitization.",
+    "type": "list",
+    "hint": "These names are passed directly to markdown.markdown(..., extensions=[...]).",
+    "default": [
+      "extra",
+      "sane_lists",
+      "nl2br",
+      "admonition",
+      "toc"
+    ]
+  },
+  "allowed_protocols": {
+    "description": "Allowed URL protocols during bleach sanitization.",
+    "type": "list",
+    "hint": "Restricts href/src protocols that survive sanitization.",
+    "default": [
+      "http",
+      "https",
+      "data"
+    ]
+  },
+  "allowed_tags": {
+    "description": "HTML tags allowed after sanitization.",
+    "type": "list",
+    "hint": "Only these tags survive bleach.clean(...).",
+    "default": [
+      "a",
+      "abbr",
+      "blockquote",
+      "br",
+      "code",
+      "del",
+      "details",
+      "div",
+      "em",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "hr",
+      "img",
+      "ins",
+      "kbd",
+      "li",
+      "mark",
+      "ol",
+      "p",
+      "pre",
+      "s",
+      "span",
+      "strong",
+      "sub",
+      "summary",
+      "sup",
+      "table",
+      "tbody",
+      "td",
+      "th",
+      "thead",
+      "tr",
+      "ul"
+    ]
+  },
+  "allowed_attributes": {
+    "description": "Allowed HTML attributes after sanitization.",
+    "type": "dict",
+    "hint": "Maps tag names to the list of attributes that may survive bleach.clean(...).",
+    "default": {
+      "a": [
+        "href",
+        "title"
+      ],
+      "img": [
+        "src",
+        "alt",
+        "title"
+      ],
+      "code": [
+        "class"
+      ],
+      "pre": [
+        "class"
+      ],
+      "span": [
+        "class"
+      ],
+      "div": [
+        "class"
+      ],
+      "th": [
+        "align"
+      ],
+      "td": [
+        "align"
+      ]
+    }
+  },
+  "html_tag_pattern": {
+    "description": "Regex used to detect whether plain text already contains HTML tags.",
+    "type": "string",
+    "hint": "Case-insensitive pattern passed to re.search(...).",
+    "default": "<[a-z][^>]*>"
+  }
+}
