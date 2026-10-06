@@ -716,6 +716,10 @@ AstrBot Core 会对 `t2i_word_threshold` 做最小保护：
 
 三套都覆盖了 Markdown 的标题、列表、引用、代码块、表格、`details`、`admonition`、`toc` 等元素样式，并且都已通过插件自身的安全校验。想整份复制进 `template_html` 也可以。
 
+下面是 `templates/frosted-glass.html` 的实际渲染效果（正文为一段覆盖各类 Markdown 元素的样例文本）：
+
+![frosted-glass 模板渲染效果](docs/preview-frosted-glass.png)
+
 它们使用的变量：
 
 | 变量 | 说明 |
