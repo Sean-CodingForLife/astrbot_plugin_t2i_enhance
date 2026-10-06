@@ -1,25 +1,98 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="T2I Enhance icon">
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 1024 1024" role="img" aria-label="T2I Enhance icon">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f766e"/>
-      <stop offset="100%" stop-color="#2563eb"/>
+    <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dde5f2"/>
     </linearGradient>
-    <linearGradient id="card" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#dbeafe"/>
+
+    <linearGradient id="plate" x1="0.05" y1="0" x2="0.95" y2="1">
+      <stop offset="0" stop-color="#2f74e2"/>
+      <stop offset="0.45" stop-color="#16439a"/>
+      <stop offset="1" stop-color="#071c52"/>
     </linearGradient>
+
+    <radialGradient id="shade" cx="960" cy="64" r="720" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#04123a" stop-opacity="0.50"/>
+      <stop offset="0.55" stop-color="#04123a" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#04123a" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="wash" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#5aa8ff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#5aa8ff" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="ray" cx="835" cy="178" r="1150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="0.10" stop-color="#e6f7ff" stop-opacity="0.72"/>
+      <stop offset="0.32" stop-color="#9adcff" stop-opacity="0.50"/>
+      <stop offset="0.62" stop-color="#56b4f5" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#2f86d8" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.62"/>
+      <stop offset="0.42" stop-color="#cfe9ff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#9fd4ff" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="cornerGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="barV" x1="0" y1="0.1" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dbe9fb"/>
+    </linearGradient>
+
+    <linearGradient id="barH" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#cfe0f7"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+
+    <linearGradient id="bubble" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#4f9ff9"/>
+      <stop offset="1" stop-color="#1a54c8"/>
+    </linearGradient>
+
+    <clipPath id="plateClip">
+      <rect x="64" y="64" width="896" height="896" rx="206"/>
+    </clipPath>
+
+    <filter id="softShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0b1a3a" flood-opacity="0.30"/>
+    </filter>
   </defs>
-  <rect width="256" height="256" rx="48" fill="url(#bg)"/>
-  <rect x="40" y="36" width="104" height="140" rx="18" fill="url(#card)" opacity="0.98"/>
-  <rect x="58" y="62" width="68" height="10" rx="5" fill="#1d4ed8"/>
-  <rect x="58" y="86" width="54" height="10" rx="5" fill="#0f766e"/>
-  <rect x="58" y="110" width="70" height="10" rx="5" fill="#94a3b8"/>
-  <rect x="58" y="134" width="46" height="10" rx="5" fill="#94a3b8"/>
-  <path d="M168 70h46c8.837 0 16 7.163 16 16v84c0 8.837-7.163 16-16 16h-58c-8.837 0-16-7.163-16-16v-72z" fill="#0b1220" opacity="0.9"/>
-  <rect x="168" y="70" width="46" height="18" rx="9" fill="#38bdf8" opacity="0.95"/>
-  <circle cx="180" cy="129" r="14" fill="#f8fafc"/>
-  <path d="M199 160l-18-18 10-10 18 18-1 11z" fill="#f59e0b"/>
-  <path d="M161 200l18-34h24l-18 34z" fill="#f8fafc" opacity="0.96"/>
-  <path d="M100 198h46" stroke="#f8fafc" stroke-width="12" stroke-linecap="round"/>
-  <path d="M123 175v46" stroke="#f8fafc" stroke-width="12" stroke-linecap="round"/>
+
+  <g filter="url(#softShadow)">
+    <rect x="56" y="56" width="912" height="912" rx="214" fill="url(#shell)"/>
+  </g>
+  <rect x="64" y="64" width="896" height="896" rx="206" fill="url(#plate)"/>
+
+  <g clip-path="url(#plateClip)">
+    <rect x="64" y="64" width="896" height="896" fill="url(#shade)"/>
+    <ellipse cx="210" cy="300" rx="520" ry="440" fill="url(#wash)"/>
+
+    <path d="M835 178 L-461.0 280.0 L-445.3 403.7 L-408.2 558.1 L-352.6 706.8 L-279.3 847.6 L-189.4 978.4 L-84.2 1097.2 L34.6 1202.4 Z" fill="url(#ray)" opacity="0.22"/>
+    <path d="M835 178 L-461.0 280.0 L-431.7 470.4 Z" fill="url(#ray)"/>
+    <path d="M835 178 L-401.4 579.7 L-255.3 886.0 Z" fill="url(#ray)"/>
+    <path d="M835 178 L-189.4 978.4 L34.6 1202.4 Z" fill="url(#ray)"/>
+
+    <rect x="824" y="178" width="22" height="633" fill="url(#barV)"/>
+    <rect x="192" y="789" width="654" height="22" fill="url(#barH)"/>
+    <circle cx="835" cy="800" r="104" fill="url(#cornerGlow)"/>
+
+    <circle cx="835" cy="178" r="285" fill="url(#halo)"/>
+    <path d="M835 90 Q848 165 923 178 Q848 191 835 266 Q822 191 747 178 Q822 165 835 90 Z" fill="#ffffff"/>
+  </g>
+
+  <path d="M156 443 H348 A56 56 0 0 1 404 499 V609 A56 56 0 0 1 348 665 H240 L148 725 L165 665 H156 A56 56 0 0 1 100 609 V499 A56 56 0 0 1 156 443 Z" fill="url(#bubble)" stroke="#ffffff" stroke-width="11" stroke-linejoin="round"/>
+
+  <g fill="#ffffff" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <text x="252" y="603" font-size="142" font-weight="800">T2I</text>
+  </g>
+  <g fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <text x="430" y="757" font-size="68" font-weight="700">Enhance</text>
+  </g>
 </svg>
