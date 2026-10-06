@@ -24,6 +24,7 @@ import random
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone, tzinfo
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
@@ -31,7 +32,12 @@ from zoneinfo import ZoneInfo
 import bleach
 import markdown
 
-from astrbot import __version__ as astrbot_version
+try:
+    from astrbot import __version__ as astrbot_version
+except ImportError:  # pragma: no cover - depends on the AstrBot build
+    # Only the cosmetic ``version`` template variable needs this, so a build that
+    # stops exporting it must not take the whole plugin down at import time.
+    astrbot_version = ""
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
@@ -40,6 +46,14 @@ from astrbot.core.message.components import Image, Plain
 # --------------------------------------------------------------------------- #
 # Defaults and constants
 # --------------------------------------------------------------------------- #
+
+#: Single source of truth for the version handed to AstrBot. Keep it in sync with
+#: ``metadata.yaml`` when releasing.
+PLUGIN_VERSION = "1.2.0"
+
+#: Directory this plugin lives in. ``template_file`` values are resolved strictly
+#: inside it, so a config entry can never read an arbitrary path off the disk.
+PLUGIN_DIR = Path(__file__).resolve().parent
 
 DEFAULT_TIMEZONE = "Asia/Shanghai"
 DEFAULT_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -94,9 +108,12 @@ DEFAULT_ALLOWED_TAGS = (
     "blockquote",
     "br",
     "code",
+    "dd",
     "del",
     "details",
     "div",
+    "dl",
+    "dt",
     "em",
     "h1",
     "h2",
@@ -128,6 +145,9 @@ DEFAULT_ALLOWED_TAGS = (
     "ul",
 )
 
+#: ``p`` needs ``class`` because the markdown ``admonition`` extension puts
+#: ``admonition-title`` on a paragraph; without it every admonition title loses
+#: the hook the bundled templates style.
 DEFAULT_ALLOWED_ATTRIBUTES: dict[str, tuple[str, ...]] = {
     "a": ("href", "title"),
     "img": ("src", "alt", "title"),
@@ -135,6 +155,7 @@ DEFAULT_ALLOWED_ATTRIBUTES: dict[str, tuple[str, ...]] = {
     "pre": ("class",),
     "span": ("class",),
     "div": ("class",),
+    "p": ("class",),
     "th": ("align",),
     "td": ("align",),
 }
@@ -168,6 +189,11 @@ RESERVED_TEMPLATE_VARS = frozenset(
 SAFE_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 SAFE_HTML_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9:_-]*$")
 SAFE_PROTOCOL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*$")
+
+#: Characters that would let a crafted background URL break out of the CSS
+#: ``url("...")`` (or the surrounding markup) it is interpolated into. Templates
+#: are usually shared, so the value is tightened before it ever reaches one.
+UNSAFE_URL_CHARS_RE = re.compile(r"[\s\"'<>\\`\x00-\x1f\x7f]")
 
 #: Sentinel for "this config value is unusable" in the option validators.
 _INVALID = object()
@@ -403,7 +429,12 @@ def normalize_allowed_tags(raw: Any) -> frozenset[str]:
     if items is None:
         return frozenset(DEFAULT_ALLOWED_TAGS)
     if not items:
-        # An explicit empty list means "strip every tag".
+        # An explicit empty list means "strip every tag". Say so out loud: losing
+        # every tag turns the rendered body into plain text.
+        logger.warning(
+            "[t2i_enhance] allowed_tags is empty: every HTML tag in the rendered "
+            "body will be stripped, leaving only the text.",
+        )
         return frozenset()
     tags = {item.lower() for item in items if SAFE_HTML_NAME_RE.fullmatch(item)}
     if not tags:
@@ -546,6 +577,8 @@ def normalize_screenshot_options(raw: Any) -> dict[str, Any]:
     if not data:
         return options
 
+    clip_requested = False
+    full_page_requested = False
     for key, value in data.items():
         key_name = str(key)
         if key_name not in ALLOWED_SCREENSHOT_KEYS:
@@ -562,7 +595,27 @@ def normalize_screenshot_options(raw: Any) -> dict[str, Any]:
                 value,
             )
             continue
+        if key_name == "clip":
+            clip_requested = True
+        elif key_name == "full_page":
+            full_page_requested = True
         options[key_name] = accepted
+
+    # Playwright refuses ``clip`` together with ``full_page: true``, and the plugin
+    # default forces full_page. Without this, merely configuring a clip would make
+    # every render fail, and ``clip`` would be a whitelisted option that can never
+    # work.
+    if clip_requested and not full_page_requested:
+        options.pop("full_page", None)
+        logger.info(
+            "[t2i_enhance] clip configured without full_page; dropped the default "
+            "full_page so the screenshot options stay valid.",
+        )
+    elif clip_requested and options.get("full_page"):
+        logger.warning(
+            "[t2i_enhance] clip and full_page=true cannot be combined; the "
+            "renderer will most likely reject these screenshot options.",
+        )
     return options
 
 
@@ -585,6 +638,13 @@ def normalize_background_candidates(
         if scheme is None or scheme not in allowed:
             logger.warning(
                 "[t2i_enhance] ignore background with disallowed protocol: %s",
+                url,
+            )
+            continue
+        if UNSAFE_URL_CHARS_RE.search(url):
+            logger.warning(
+                "[t2i_enhance] ignore background with characters that are unsafe "
+                "inside a template: %r",
                 url,
             )
             continue
@@ -630,6 +690,12 @@ def timezone_label(resolved: tzinfo, fallback: str) -> str:
         return fallback
 
 
+#: Invalid ``strftime`` formats that were already reported, so a bad format in the
+#: config warns once instead of once per rendered message.
+_WARNED_STRFTIME_FORMATS: set[str] = set()
+_MAX_WARNED_STRFTIME_FORMATS = 64
+
+
 def format_time(value: datetime, fmt: str, fallback: str = "") -> str:
     """``strftime`` that survives platform-specific format directives.
 
@@ -639,11 +705,17 @@ def format_time(value: datetime, fmt: str, fallback: str = "") -> str:
     try:
         return value.strftime(fmt)
     except (ValueError, TypeError, OverflowError):
-        logger.warning(
-            "[t2i_enhance] invalid strftime format %r; falling back to %r.",
-            fmt,
-            fallback,
-        )
+        if (
+            isinstance(fmt, str)
+            and fmt not in _WARNED_STRFTIME_FORMATS
+            and len(_WARNED_STRFTIME_FORMATS) < _MAX_WARNED_STRFTIME_FORMATS
+        ):
+            _WARNED_STRFTIME_FORMATS.add(fmt)
+            logger.warning(
+                "[t2i_enhance] invalid strftime format %r; falling back to %r.",
+                fmt,
+                fallback,
+            )
     if fallback:
         try:
             return value.strftime(fallback)
@@ -667,6 +739,7 @@ class TemplateProfile:
     name: str
     enabled: bool
     template_html: str
+    template_file: str
     inject_datetime: bool
     timezone_name: str
     timezone_label: str
@@ -690,6 +763,7 @@ def build_profile(
     name: str,
     item: dict[str, Any],
     template_html: str,
+    template_file: str = "",
 ) -> TemplateProfile:
     timezone_name = (
         str(item.get("timezone", DEFAULT_TIMEZONE) or "").strip() or DEFAULT_TIMEZONE
@@ -717,6 +791,7 @@ def build_profile(
         name=name,
         enabled=bool(item.get("enabled", True)),
         template_html=template_html,
+        template_file=template_file,
         inject_datetime=bool(item.get("inject_datetime", True)),
         timezone_name=timezone_name,
         timezone_label=timezone_label(resolved_tz, timezone_name),
@@ -753,6 +828,87 @@ def build_profile(
     )
 
 
+def resolve_template_path(raw: Any) -> Path | None:
+    """Resolve a ``template_file`` value to a path inside the plugin directory.
+
+    ``None`` means "not usable": blank, wrong type, or anything that escapes the
+    plugin directory — absolute paths, other drives, ``..`` traversal, and
+    symlinks that resolve outside.
+    """
+    if not isinstance(raw, str):
+        return None
+    relative = raw.strip().replace("\\", "/")
+    if not relative:
+        return None
+    try:
+        candidate = (PLUGIN_DIR / relative).resolve()
+    except (OSError, ValueError, RuntimeError):
+        return None
+    try:
+        candidate.relative_to(PLUGIN_DIR)
+    except ValueError:
+        return None
+    return candidate
+
+
+def read_template_file(raw: Any, profile_name: str) -> str:
+    """Return the body of ``template_file``, or ``""`` when it is unusable."""
+    if not isinstance(raw, str) or not raw.strip():
+        return ""
+    path = resolve_template_path(raw)
+    if path is None:
+        logger.warning(
+            "[t2i_enhance] profile %r: template_file must stay inside the plugin "
+            "directory, got %r; ignored.",
+            profile_name,
+            raw,
+        )
+        return ""
+    if not path.is_file():
+        logger.warning(
+            "[t2i_enhance] profile %r: template_file not found: %s; ignored.",
+            profile_name,
+            path,
+        )
+        return ""
+    try:
+        # ``utf-8-sig`` tolerates a BOM written by some editors.
+        return path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as exc:
+        logger.warning(
+            "[t2i_enhance] profile %r: cannot read template_file %s: %s; ignored.",
+            profile_name,
+            path,
+            exc,
+        )
+        return ""
+
+
+def template_file_fingerprint(raw_profiles: Any) -> str:
+    """Fingerprint the size and mtime of every referenced template file.
+
+    Editing a template file does not change the plugin config, so without this
+    the normalized-profile cache would keep serving the previous HTML until the
+    plugin was reloaded.
+    """
+    if not isinstance(raw_profiles, (list, tuple)):
+        return ""
+    entries: list[tuple[str, int, int]] = []
+    for item in raw_profiles:
+        if not isinstance(item, dict):
+            continue
+        path = resolve_template_path(item.get("template_file"))
+        if path is None:
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            entries.append((str(path), -1, -1))
+        else:
+            entries.append((str(path), stat.st_mtime_ns, stat.st_size))
+    return config_fingerprint(entries) if entries else ""
+
+
 def normalize_template_profiles(raw_profiles: Any) -> tuple[TemplateProfile, ...]:
     """Validate and normalize every configured profile.
 
@@ -773,10 +929,24 @@ def normalize_template_profiles(raw_profiles: Any) -> tuple[TemplateProfile, ...
         if not isinstance(item, dict):
             continue
         name = str(item.get("name", "") or "").strip()
-        template_html = str(item.get("template_html", "") or "").strip()
+        template_file = str(item.get("template_file", "") or "").strip()
+        inline_html = str(item.get("template_html", "") or "").strip()
+        # The file wins over the inline copy. The schema always ships a non-empty
+        # ``template_html`` default, so the other order would make ``template_file``
+        # impossible to adopt without blanking the inline field by hand.
+        file_html = read_template_file(template_file, name or f"#{index}").strip()
+        if file_html:
+            template_html = file_html
+            # Record the file only when it was really the source, so the render log
+            # does not claim a file that had silently fallen back to the inline copy.
+            template_source = template_file
+        else:
+            template_html = inline_html
+            template_source = ""
         if not name or not template_html:
             logger.warning(
-                "[t2i_enhance] skip template profile #%s: name and template_html are required.",
+                "[t2i_enhance] skip template profile #%s: a name plus either "
+                "template_html or template_file is required.",
                 index,
             )
             continue
@@ -796,7 +966,7 @@ def normalize_template_profiles(raw_profiles: Any) -> tuple[TemplateProfile, ...
             )
             continue
         seen_names.add(name)
-        profiles.append(build_profile(name, item, template_html))
+        profiles.append(build_profile(name, item, template_html, template_source))
     return tuple(profiles)
 
 
@@ -926,7 +1096,7 @@ def resolve_render_text(
     "t2i_enhance",
     "Codex",
     "T2I Enhance: self-managed HTML templates with backend-injected variables.",
-    "1.1.0",
+    PLUGIN_VERSION,
 )
 class T2IEnhancePlugin(Star):
     def __init__(self, context: Context, config: dict):
@@ -960,10 +1130,15 @@ class T2IEnhancePlugin(Star):
         Normalizing a profile costs six regex scans over the whole template plus
         several JSON parses, and it used to happen on every message. The raw
         config is fingerprinted instead so repeated renders are free while a
-        WebUI edit still takes effect immediately.
+        WebUI edit still takes effect immediately. Profiles that read their HTML
+        from ``template_file`` also fold that file's size and mtime into the key,
+        so editing the file is picked up on the next render too.
         """
         raw_profiles = config_get(self.config, "template_profiles", [])
         fingerprint = config_fingerprint(raw_profiles)
+        file_fingerprint = template_file_fingerprint(raw_profiles)
+        if file_fingerprint:
+            fingerprint = f"{fingerprint}:{file_fingerprint}"
         if fingerprint and fingerprint == self._profile_cache_fingerprint:
             return self._profile_cache
 
@@ -1047,7 +1222,7 @@ class T2IEnhancePlugin(Star):
             "html": rendered_content,
             "template_name": profile.name,
             "bg_url": self._select_background(profile),
-            "version": f"v{astrbot_version}",
+            "version": f"v{astrbot_version}" if astrbot_version else "",
         }
 
         if profile.inject_datetime:
@@ -1121,17 +1296,38 @@ class T2IEnhancePlugin(Star):
         )
 
     @staticmethod
-    def _build_image_component(event: AstrMessageEvent, location: str) -> Image:
-        """Wrap a render result as an image component.
+    def _build_image_component(event: AstrMessageEvent, location: str) -> Image | None:
+        """Wrap a render result as an image component, or ``None`` on failure.
 
         ``return_url=False`` normally yields a downloaded temp file, but a
         custom renderer may still hand back a URL; tracking a URL as a temporary
         local file would be wrong, so both shapes are handled.
+
+        This runs *after* a successful render, so it must never raise: losing the
+        finished image to an unrelated API difference would be the worst outcome.
         """
-        if location.startswith(("http://", "https://")):
-            return Image.fromURL(location)
-        event.track_temporary_local_file(location)
-        return Image.fromFileSystem(location)
+        try:
+            if location.startswith(("http://", "https://")):
+                return Image.fromURL(location)
+            tracker = getattr(event, "track_temporary_local_file", None)
+            if callable(tracker):
+                try:
+                    tracker(location)
+                except Exception:
+                    # Cleanup bookkeeping only; the image itself is still valid.
+                    logger.warning(
+                        "[t2i_enhance] could not register %s for temp-file cleanup.",
+                        location,
+                        exc_info=True,
+                    )
+            return Image.fromFileSystem(location)
+        except Exception:
+            logger.warning(
+                "[t2i_enhance] could not build an image component for %s.",
+                location,
+                exc_info=True,
+            )
+            return None
 
     @filter.on_decorating_result()
     async def on_decorating_result(self, event: AstrMessageEvent) -> None:
@@ -1148,36 +1344,52 @@ class T2IEnhancePlugin(Star):
             logger.debug("[t2i_enhance] no enabled plugin template profile found.")
             return
 
+        # ``leading.text`` keeps the core-identical "\n\n" prefixes so the threshold
+        # decision still lines up with ResultDecorateStage, but a template should
+        # not receive the leading blank line.
+        render_text = leading.text.lstrip("\r\n")
         try:
-            rendered_content = render_content(leading.text, profile)
+            rendered_content = render_content(render_text, profile)
             template_data = self.build_template_data(
-                leading.text,
+                render_text,
                 rendered_content,
                 profile,
             )
             logger.info(
-                "[t2i_enhance] rendering plugin template: %s, chars=%s",
+                "[t2i_enhance] rendering plugin template: %s (source=%s), chars=%s",
                 profile.name,
-                len(leading.text),
+                profile.template_file or "inline",
+                len(render_text),
             )
             location = await self._render_template(profile, template_data, event)
             if not isinstance(location, str) or not location:
                 raise RuntimeError("html_render returned no image")
         except Exception:
-            # Keep the core from retrying with its own template, which would
-            # double the latency and render with a template the user did not pick.
-            result.use_t2i_ = False
-            logger.exception(
-                "[t2i_enhance] failed to render template %r; sending text instead.",
-                profile.name,
-            )
+            if config_get(self.config, "fallback_to_core_t2i", False):
+                logger.exception(
+                    "[t2i_enhance] failed to render template %r; leaving T2I "
+                    "enabled so AstrBot core can render this reply instead.",
+                    profile.name,
+                )
+            else:
+                # Default: keep the core from retrying with its own template, which
+                # would double the latency and use a template the user did not pick.
+                result.use_t2i_ = False
+                logger.exception(
+                    "[t2i_enhance] failed to render template %r; sending the plain "
+                    "text instead and suppressing T2I for this reply. Set "
+                    "fallback_to_core_t2i to let core render it instead.",
+                    profile.name,
+                )
             return
 
         suffix_chain = result.chain[leading.count :]
-        result.chain = [
-            self._build_image_component(event, location),
-            *suffix_chain,
-        ]
+        component = self._build_image_component(event, location)
+        if component is None:
+            # Fall back to the text rather than leaving the core to render again.
+            result.use_t2i_ = False
+            return
+        result.chain = [component, *suffix_chain]
         result.use_t2i_ = False
         logger.info(
             "[t2i_enhance] rendered image with plugin template: %s",

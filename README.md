@@ -95,7 +95,7 @@ pip install -r requirements.txt
 
 ## 版本与适用范围
 
-- 当前版本：`v1.1.0`
+- 当前版本：`v1.2.0`
 - AstrBot：`>=4.26,<5`
 - 支持平台：见 [metadata.yaml](metadata.yaml)
 
@@ -149,15 +149,17 @@ pip install -r requirements.txt
 
 配置定义见 [_conf_schema.json](_conf_schema.json)。
 
-顶层只看三项：
+顶层只看四项：
 
 - `plugin_enabled`
+- `fallback_to_core_t2i`
 - `active_profile`
 - `template_profiles`
 
 其中：
 
 - `plugin_enabled`：插件总开关
+- `fallback_to_core_t2i`：插件渲染失败时是否交回 Core 渲染（默认关闭，见下文「渲染失败时的取舍」）
 - `active_profile`：当前启用的模板配置名
 - `template_profiles`：模板配置列表
 
@@ -167,6 +169,7 @@ pip install -r requirements.txt
 
 - `enabled`
 - `name`
+- `template_file`
 - `template_html`
 - `render_markdown`
 - `sanitize_html_input`
@@ -179,11 +182,31 @@ pip install -r requirements.txt
 不需要一开始就把所有配置都填满。真正常用的，通常只有：
 
 - `name`
-- `template_html`
+- `template_html`（或 `template_file`）
 - `render_markdown`
 - `background_candidates`
 - `background_switch_mode`
 - `custom_vars_json`
+
+### 用 `template_file` 代替 `template_html`
+
+模板动辄几百行，粘进 WebUI 文本框既难维护也容易粘坏。把模板文件放进插件目录（例如 `templates/`），然后只写路径：
+
+```json
+{
+  "enabled": true,
+  "name": "frosted",
+  "template_file": "templates/frosted-glass.html"
+}
+```
+
+规则：
+
+- 路径**相对于插件目录**解析，并且必须落在插件目录内。绝对路径、`..` 穿越、其他盘符、解析后指向外部的符号链接都会被拒绝并告警。
+- 文件可读时**优先于 `template_html`**。所以只填 `template_file`、把 `template_html` 留成默认占位内容就能正常工作。
+- 文件读不到（路径写错、文件被删、不是 UTF-8）时会告警并回退到 `template_html`；两者都拿不到内容时该条配置被跳过。
+- 模板文件的**修改时间与大小**参与缓存指纹，改完文件下一次渲染就生效，无需重载插件。
+- 支持 UTF-8 BOM（用 `utf-8-sig` 解码），编辑器自动加 BOM 不会污染模板。
 
 ## 最小可用配置
 
@@ -458,12 +481,15 @@ background:
 
 这份结果按原始配置内容的指纹缓存。配置没变时，后续每条消息直接复用，不再重复做正则扫描与 JSON 解析；在 WebUI 里改完配置后，下一次渲染会自动使用新配置，不需要手动重载插件。
 
+用 `template_file` 的配置会把模板文件的修改时间与大小一起算进指纹，所以直接编辑 `templates/` 下的文件，同样下一次渲染就生效。
+
 ### 解析失败时的降级
 
 配置里某一项写错，不会连带毁掉其他项：
 
 | 配置项 | 出错时的行为 |
 | --- | --- |
+| `template_file` | 路径逃逸、文件不存在或读取失败时告警，并回退到 `template_html` |
 | `template_html` | 命中安全校验则该条配置被跳过并告警 |
 | `allowed_tags` | 类型不对或全部非法时回退到默认白名单 |
 | `allowed_attributes_json` | JSON 非法时回退到默认白名单；显式填 `{}` 表示不放行任何属性 |
@@ -475,9 +501,31 @@ background:
 | `timezone` | 无效时区回退到 `UTC` 并告警 |
 | 日期时间格式 | 非法 `strftime` 指令回退到默认格式并告警 |
 
+### 渲染失败时的取舍
+
+插件渲染失败（HTML 端点不可用、Playwright 超时、截图选项被拒等）时有两种走向，由顶层开关 `fallback_to_core_t2i` 决定：
+
+| 取值 | 行为 | 适用 |
+| --- | --- | --- |
+| `false`（默认） | 直接发送纯文本，并把该条结果的 `use_t2i_` 置为 `false`，抑制 Core 再渲染一次 | T2I 完全依赖本插件时；同时避免同一条消息渲染两次的额外延迟 |
+| `true` | 保留 T2I 标记，交回 Core 用它自己的官方模板渲染 | 使用 `t2i_strategy=local` 这类不依赖 HTML 端点的 Core 渲染时，插件失败仍能拿到一张图 |
+
+默认值与 v1.1.0 行为一致，升级不会改变现有表现。
+
+### 默认白名单与默认 Markdown 扩展是对齐的
+
+默认 `allowed_tags` / `allowed_attributes_json` 覆盖了默认 `markdown_extensions` 实际会产出的结构：
+
+- `admonition` 输出 `<div class="admonition note">` 与 `<p class="admonition-title">`。因此 `p` 必须放行 `class`，否则警示框标题的类会被 bleach 剥掉，模板里写的 `.admonition-title` 样式会静默失效。
+- `extra` 会输出定义列表 `<dl>` / `<dt>` / `<dd>`。
+- 代码块 `<pre class="...">` / `<code class="...">` 的 `class` 要保留，Shiki 高亮依赖它。
+
+如果你自定义了这两项又保留了默认扩展，注意别把上面的标签或类裁掉。
+
 ### 一次渲染只收集一次正文
 
 结果链前导 `Plain` 文本只收集一次，同时用于判定阈值与生成模板数据。
+阈值判定用的是与 Core 一致的 `"\n\n"` 拼接串，而传给模板的 `raw_text` / `content` 会去掉开头换行。
 
 ## 模板安全校验
 
@@ -619,7 +667,7 @@ AstrBot Core 会对 `t2i_word_threshold` 做最小保护：
 2. AstrBot 的 `t2i` 是否开启
 3. 当前文本长度是否超过实际生效阈值
 4. `active_profile` 是否和某条已启用 `template_profiles[].name` 匹配
-5. 该 profile 的 `template_html` 是否非空
+5. 该 profile 的 `template_html` 或 `template_file` 至少有一项能提供内容（`template_file` 必须在插件目录内且文件存在）
 6. 正文位置是否真的输出了 `{{ text | safe }}` 或 `{{ content | safe }}`
 7. `render_markdown` 是否按预期开启
 8. `background_candidates` 和 `background_switch_mode` 是否正确
@@ -656,12 +704,17 @@ AstrBot Core 会对 `t2i_word_threshold` 做最小保护：
 
 ### 开箱可用的完整模板
 
-仓库 `templates/` 目录下放了两套完整设计，直接整份复制进 `template_html` 即可：
+仓库 `templates/` 目录下放了三套完整设计。用 `template_file` 直接引用即可，不必把模板内容粘进 `template_html`：
 
+```json
+{ "enabled": true, "name": "frosted", "template_file": "templates/frosted-glass.html" }
+```
+
+- [templates/frosted-glass.html](templates/frosted-glass.html) —— 浅色清爽风：白底淡方格 + 方正白卡与实色标尺，文档式排版，无圆形装饰
 - [templates/aurora-glass.html](templates/aurora-glass.html) —— 深色极光玻璃卡，适合技术向输出
 - [templates/paper-light.html](templates/paper-light.html) —— 浅色纸质排版，适合长文阅读
 
-两套都覆盖了 Markdown 的标题、列表、引用、代码块、表格、`details`、`admonition`、`toc` 等元素样式，并且都已通过插件自身的安全校验。
+三套都覆盖了 Markdown 的标题、列表、引用、代码块、表格、`details`、`admonition`、`toc` 等元素样式，并且都已通过插件自身的安全校验。想整份复制进 `template_html` 也可以。
 
 它们使用的变量：
 

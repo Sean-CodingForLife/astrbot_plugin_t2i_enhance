@@ -5,6 +5,12 @@
     "hint": "开启后，插件会在命中 T2I 条件时使用插件自己维护的模板配置进行渲染。",
     "default": true
   },
+  "fallback_to_core_t2i": {
+    "description": "插件渲染失败时，是否交回 AstrBot Core 渲染。",
+    "type": "bool",
+    "hint": "关闭（默认）时，插件渲染失败会直接发送纯文本并抑制本次 T2I；开启后渲染失败会保留 T2I 标记，由 Core 用官方模板再渲染一次。",
+    "default": false
+  },
   "active_profile": {
     "description": "当前启用的插件模板配置名。",
     "type": "string",
@@ -153,9 +159,12 @@
               "blockquote",
               "br",
               "code",
+              "dd",
               "del",
               "details",
               "div",
+              "dl",
+              "dt",
               "em",
               "h1",
               "h2",
@@ -193,7 +202,7 @@
             "hint": "填写 JSON 对象，例如 {\"a\": [\"href\", \"title\"]}。",
             "editor_mode": true,
             "editor_language": "json",
-            "default": "{\n  \"a\": [\"href\", \"title\"],\n  \"img\": [\"src\", \"alt\", \"title\"],\n  \"code\": [\"class\"],\n  \"pre\": [\"class\"],\n  \"span\": [\"class\"],\n  \"div\": [\"class\"],\n  \"th\": [\"align\"],\n  \"td\": [\"align\"]\n}"
+            "default": "{\n  \"a\": [\"href\", \"title\"],\n  \"img\": [\"src\", \"alt\", \"title\"],\n  \"code\": [\"class\"],\n  \"pre\": [\"class\"],\n  \"span\": [\"class\"],\n  \"div\": [\"class\"],\n  \"p\": [\"class\"],\n  \"th\": [\"align\"],\n  \"td\": [\"align\"]\n}"
           }
         }
       }
@@ -233,9 +242,12 @@
           "blockquote",
           "br",
           "code",
+          "dd",
           "del",
           "details",
           "div",
+          "dl",
+          "dt",
           "em",
           "h1",
           "h2",
@@ -266,7 +278,7 @@
           "tr",
           "ul"
         ],
-        "allowed_attributes_json": "{\n  \"a\": [\"href\", \"title\"],\n  \"img\": [\"src\", \"alt\", \"title\"],\n  \"code\": [\"class\"],\n  \"pre\": [\"class\"],\n  \"span\": [\"class\"],\n  \"div\": [\"class\"],\n  \"th\": [\"align\"],\n  \"td\": [\"align\"]\n}"
+        "allowed_attributes_json": "{\n  \"a\": [\"href\", \"title\"],\n  \"img\": [\"src\", \"alt\", \"title\"],\n  \"code\": [\"class\"],\n  \"pre\": [\"class\"],\n  \"span\": [\"class\"],\n  \"div\": [\"class\"],\n  \"p\": [\"class\"],\n  \"th\": [\"align\"],\n  \"td\": [\"align\"]\n}"
       }
     ]
   }
