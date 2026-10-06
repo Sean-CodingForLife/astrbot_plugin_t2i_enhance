@@ -1,6 +1,6 @@
 # T2I Enhance
 
-![T2I Enhance Icon](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/icon.svg)
+![T2I Enhance Icon](icon.svg)
 
 > 一个基于 `html_render(template, data, options)` 的 AstrBot T2I 增强插件。  
 > 插件自己维护模板、自己注入变量、自己执行渲染，不读取、不绑定、不接管任何官方模板内容。
@@ -95,9 +95,9 @@ pip install -r requirements.txt
 
 ## 版本与适用范围
 
-- 当前版本：`v1.0.0`
+- 当前版本：`v1.1.0`
 - AstrBot：`>=4.26,<5`
-- 支持平台：见 [metadata.yaml](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/metadata.yaml:1)
+- 支持平台：见 [metadata.yaml](metadata.yaml)
 
 ## 兼容性与部署
 
@@ -147,7 +147,7 @@ pip install -r requirements.txt
 
 ## 配置结构
 
-配置定义见 [_conf_schema.json](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/_conf_schema.json:1)。
+配置定义见 [_conf_schema.json](_conf_schema.json)。
 
 顶层只看三项：
 
@@ -327,10 +327,23 @@ background:
 
 - `random`
   - 每次渲染随机选一张
+  - 候选多于一张时，会尽量避开上一次用过的那张
 - `sequential`
-  - 按列表顺序轮换
+  - 按列表顺序轮换，每个模板配置各自维护游标
 - `fixed`
   - 始终使用第一张
+
+`background_switch_mode` 的大小写与首尾空格会被忽略，`Random`、` random ` 都等同于 `random`。
+
+### 候选 URL 的校验时机
+
+`background_candidates` 在配置加载阶段就会完成校验与去重：
+
+- 只保留带有 scheme 的绝对 URL，相对路径会被丢弃
+- scheme 必须在 `allowed_protocols` 内，否则该条会被跳过并告警
+- 重复 URL 只保留第一条
+
+因此非法候选只会在配置变化后告警一次，不会每条消息都刷日志。
 
 ### 这个地方最容易踩坑
 
@@ -431,21 +444,78 @@ background:
 - `quality`
 - `timeout`
 
+## 配置生效与性能
+
+### 归一化结果会被缓存
+
+插件在首次命中渲染时，会把 `template_profiles` 归一化成内部配置对象：
+
+- 模板安全校验
+- HTML 清洗白名单
+- 截图选项与自定义变量解析
+- 背景图候选去重与协议校验
+- 时区对象
+
+这份结果按原始配置内容的指纹缓存。配置没变时，后续每条消息直接复用，不再重复做正则扫描与 JSON 解析；在 WebUI 里改完配置后，下一次渲染会自动使用新配置，不需要手动重载插件。
+
+### 解析失败时的降级
+
+配置里某一项写错，不会连带毁掉其他项：
+
+| 配置项 | 出错时的行为 |
+| --- | --- |
+| `template_html` | 命中安全校验则该条配置被跳过并告警 |
+| `allowed_tags` | 类型不对或全部非法时回退到默认白名单 |
+| `allowed_attributes_json` | JSON 非法时回退到默认白名单；显式填 `{}` 表示不放行任何属性 |
+| `allowed_protocols` | 为空或全部非法时回退到 `http` / `https` / `data` |
+| `markdown_extensions` | 无法加载的扩展被剔除并告警，其余继续生效 |
+| `screenshot_options_json` | 非法键与非法取值被忽略，其余继续生效 |
+| `custom_vars_json` | 非法键名与保留变量名被忽略，其余继续注入 |
+| `background_candidates` | 非法 URL 被剔除，其余继续参与切换 |
+| `timezone` | 无效时区回退到 `UTC` 并告警 |
+| 日期时间格式 | 非法 `strftime` 指令回退到默认格式并告警 |
+
+### 一次渲染只收集一次正文
+
+结果链前导 `Plain` 文本只收集一次，同时用于判定阈值与生成模板数据。
+
 ## 模板安全校验
 
-插件在读取模板配置时会做最小安全校验。
+插件在读取模板配置时会做最小安全校验，命中危险模式的模板会被直接跳过并回退为纯文本。
 
-命中以下危险模式的模板会被直接跳过：
+校验分两层，目的是在拦住真实攻击面的同时尽量避免误判：
 
-- Jinja2 dunder 链访问，如 `__class__`
-- `os.xxx`
-- `subprocess`
-- `.popen(`
-- `eval(`
-- `exec(`
+### 1. HTML 层（扫描整份模板）
+
+- `<script>`
+- `<iframe>`
+- `<object>`、`<embed>`、`<applet>`
+- 内联事件属性，如 `onclick=`、`onerror=`
+- `javascript:`、`vbscript:` URL
+- `data:text/html`
+
+### 2. Jinja 层（只扫描 `{{ ... }}` 与 `{% ... %}` 内部）
+
+- dunder 链访问，如 `__class__`、`__globals__`
+- 模块属性访问，如 `os.`、`subprocess.`、`importlib.`
+- 代码执行，如 `eval(`、`exec(`、`popen(`、`open(`
+- 命名空间自省，如 `getattr(`、`globals(`
+- `|attr(` 过滤器
+- 模板自省对象，如 `self`、`lipsum`、`cycler`
 - Flask 上下文对象，如 `config`、`request`、`session`、`g`
-- `<script>` 标签
-- `javascript:` URL
+- 模板加载，如 `{% include %}`、`{% extends %}`、`{% import %}`、`{% from %}`
+
+### 为什么只扫 Jinja 内部
+
+代码执行类模式只在 Jinja 表达式里才有意义。如果对整个模板文本做匹配，普通内容会被误伤，例如：
+
+```css
+background: url("https://example.com/photos.png");
+```
+
+这里的 `photos.png` 含有 `os.` 子串，旧版本会因此把整份模板判定为不安全并跳过。现在这类误判不会发生。
+
+### 边界
 
 这不是通用模板沙箱，只是最小保护。
 
@@ -453,6 +523,7 @@ background:
 
 - 正常 HTML/CSS 模板可以写
 - 明显危险的模板内容不会进入渲染流程
+- `template_html` 仍然应当视为可信输入，不要直接粘贴来源不明的模板
 
 ## 这个插件最容易被误解的点
 
@@ -555,6 +626,14 @@ AstrBot Core 会对 `t2i_word_threshold` 做最小保护：
 9. 模板内容是否命中了插件的最小安全校验
 10. 输入结果链前导部分是否真的是连续 `Plain`
 
+日志里可以直接找到这几类线索：
+
+- `skip:` 开头的 `DEBUG` 日志会写明跳过的具体原因（插件关闭、T2I 未开启、无前导 `Plain`、未超阈值）
+- `active_profile %r matches no enabled profile` 说明模板配置名写错了，插件已回落到第一条已启用配置
+- `blocked unsafe template profile` 说明模板被安全校验拦下，括号里是具体命中的规则名
+- `selected background` 会打出本次选中的背景图与候选数量
+- `drop unusable markdown extension` / `ignore invalid value for screenshot option` 说明相关配置项被忽略
+
 ## 与官方实现的对应关系
 
 本插件当前实现对照了 AstrBot 官方文档与 Core 行为，关键事实如下：
@@ -563,11 +642,48 @@ AstrBot Core 会对 `t2i_word_threshold` 做最小保护：
 - `data` 确实作为 Jinja2 模板变量进入渲染
 - 默认 `t2i_word_threshold` 为 `150`
 - Core 会把 `t2i_word_threshold` 最低保护到 `50`
+- Core 的 `ResultDecorateStage` 同样只取结果链开头连续的 `Plain`，并用 `"\n\n"` 连接
 - `on_decorating_result` 可以直接改结果链
+- `html_render` 的 `umo` 参数在较新版本上才存在，插件会先探测再传
+
+插件对触发条件的判断刻意与 Core 保持一致：`plan` 阶段用的开关判断、前导 `Plain` 收集方式、`"\n\n"` 分隔符与阈值比较逻辑都对齐 `ResultDecorateStage`，因此插件只会在 Core 本来就会走 T2I 的情况下接管渲染。
+
+差异只在渲染本身：Core 用官方模板，插件用 `template_profiles` 里自维护的模板与变量。
 
 所以这套实现是“在官方允许的插件能力范围内独立渲染”，不是对 Core 做侵入修改；同时它依赖的是 HTML 渲染链路，而不是官方 `local` PIL T2I 链路。
 
 ## 示例
+
+### 开箱可用的完整模板
+
+仓库 `templates/` 目录下放了两套完整设计，直接整份复制进 `template_html` 即可：
+
+- [templates/aurora-glass.html](templates/aurora-glass.html) —— 深色极光玻璃卡，适合技术向输出
+- [templates/paper-light.html](templates/paper-light.html) —— 浅色纸质排版，适合长文阅读
+
+两套都覆盖了 Markdown 的标题、列表、引用、代码块、表格、`details`、`admonition`、`toc` 等元素样式，并且都已通过插件自身的安全校验。
+
+它们使用的变量：
+
+| 变量 | 说明 |
+| --- | --- |
+| `content` | 正文 HTML，必填 |
+| `datetime` | 页眉时间，`inject_datetime` 关闭时自动隐藏 |
+| `version` | AstrBot 版本号 |
+| `site_name` | 页眉品牌名，缺省显示 `AstrBot` |
+| `theme_name` | 页脚文案，缺省值即为默认配置里的 `T2I Enhance` |
+| `footer_text` | 可选，填了会覆盖页脚的 `theme_name` |
+| `bg_url` | 可选，留空则不铺背景图 |
+
+对应的 `custom_vars_json`：
+
+```json
+{
+  "site_name": "AstrBot",
+  "theme_name": "T2I Enhance",
+  "footer_text": "Generated by T2I Enhance"
+}
+```
 
 ### 示例 1：最小正文模板
 
@@ -644,8 +760,8 @@ AstrBot Core 会对 `t2i_word_threshold` 做最小保护：
 
 ## 变更记录
 
-见 [CHANGELOG.md](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/CHANGELOG.md:1)。
+见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 许可证
 
-本仓库使用 [MIT License](C:/Users/Administrator/Desktop/astrbot_plugin_t2i_enhance/LICENSE:1)。
+本仓库使用 [MIT License](LICENSE)。
