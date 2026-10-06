@@ -6,14 +6,18 @@
   <title>{{ template_name }}</title>
   <style>
     :root {
-      --ink: #f0f5ff;
-      --ink-soft: #cdd8f0;
-      --ink-dim: #93a3c4;
-      --glass-line: rgba(255, 255, 255, 0.18);
-      --glass-soft: rgba(255, 255, 255, 0.10);
-      --accent: #7dd3fc;
-      --accent-2: #c4b5fd;
-      --blur: 30px;
+      --bg: #f5f7fa;
+      --card: #ffffff;
+      --ink: #111827;
+      --ink-soft: #4b5563;
+      --ink-dim: #8b95a5;
+      --line: #e3e8ef;
+      --line-strong: #cfd8e3;
+      --tint: #f4f7fb;
+      --accent: #2563eb;
+      --accent-2: #0891b2;
+      --accent-soft: rgba(37, 99, 235, 0.10);
+      --radius: 10px;
       --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
         "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC",
         "Source Han Sans SC", sans-serif;
@@ -23,15 +27,14 @@
 
     * { box-sizing: border-box; }
 
-    /* 玻璃后面必须有颜色可模糊，这四团极光色块就是整套质感的来源。 */
+    /* 极淡方格底纹给浅色背景一点结构感：不用光斑、不用圆形装饰。 */
     html {
-      background-color: #04060d;
+      background-color: var(--bg);
       background-image:
-        radial-gradient(48rem 34rem at 6% 2%, rgba(34, 211, 238, 0.44), transparent 62%),
-        radial-gradient(42rem 32rem at 98% 10%, rgba(232, 121, 249, 0.38), transparent 64%),
-        radial-gradient(46rem 36rem at 74% 98%, rgba(99, 102, 241, 0.42), transparent 66%),
-        radial-gradient(38rem 30rem at 14% 92%, rgba(45, 212, 191, 0.30), transparent 64%),
-        linear-gradient(160deg, #070b16 0%, #050810 55%, #03050b 100%);
+        linear-gradient(rgba(17, 24, 39, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(17, 24, 39, 0.035) 1px, transparent 1px),
+        linear-gradient(180deg, #fbfcfe 0%, #f1f5fa 100%);
+      background-size: 28px 28px, 28px 28px, 100% 100%;
     }
 
     body {
@@ -41,14 +44,14 @@
       justify-content: center;
       margin: 0;
       min-height: 100vh;
-      padding: 56px 26px 64px;
+      padding: 48px 24px 56px;
       color: var(--ink);
-      font: 16.5px/1.85 var(--sans);
+      font: 16.5px/1.8 var(--sans);
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
     }
 
-    /* 背景图压一层暗幕后作为玻璃背后的一层纹理。 */
+    /* 背景图压一层浅色蒙版，保证正文对比度。 */
     body::before {
       content: "";
       position: absolute;
@@ -56,7 +59,7 @@
       z-index: 0;
       {% if bg_url %}
       background-image:
-        linear-gradient(175deg, rgba(4, 6, 13, 0.55) 0%, rgba(4, 6, 13, 0.72) 60%, rgba(3, 5, 11, 0.86) 100%),
+        linear-gradient(180deg, rgba(252, 253, 255, 0.92) 0%, rgba(246, 249, 252, 0.94) 55%, rgba(240, 244, 249, 0.96) 100%),
         url("{{ bg_url }}");
       background-size: cover, cover;
       background-position: center top, center top;
@@ -64,124 +67,65 @@
       {% endif %}
     }
 
-    /* ---------- 悬浮玻璃球 ---------- */
-    .orb {
-      position: absolute;
-      z-index: 1;
-      border: 1px solid rgba(255, 255, 255, 0.26);
-      border-radius: 50%;
-      background:
-        radial-gradient(120% 120% at 30% 22%, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.06) 58%, rgba(255, 255, 255, 0.02) 100%);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.55),
-        inset 0 -8px 18px -10px rgba(0, 0, 0, 0.55),
-        0 22px 50px -22px rgba(0, 0, 0, 0.85);
-    }
-    .orb-1 { top: 9%; right: 5.5%; width: 118px; height: 118px; }
-    .orb-2 { top: 58%; right: 4%; width: 56px; height: 56px; }
-    .orb-3 { bottom: 11%; left: 5%; width: 84px; height: 84px; }
-
     .page {
       position: relative;
-      z-index: 2;
+      z-index: 1;
       width: 100%;
       max-width: 840px;
       margin: 0 auto;
     }
 
-    /* ---------- 玻璃胶囊 ---------- */
-    .pill {
+    /* ---------- 页眉 / 页脚：直角小圆角标签，不做胶囊 ---------- */
+    .topbar, .footbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .topbar { margin: 0 0 14px; }
+    .footbar { margin: 14px 0 0; }
+    .spacer { flex: 1; }
+
+    .chip {
       display: inline-flex;
       align-items: center;
-      gap: 9px;
-      padding: 8px 15px;
-      border: 1px solid var(--glass-line);
-      border-radius: 999px;
-      background: linear-gradient(160deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.045));
-      backdrop-filter: blur(16px) saturate(1.6);
-      -webkit-backdrop-filter: blur(16px) saturate(1.6);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.36),
-        inset 0 -1px 0 rgba(255, 255, 255, 0.05),
-        0 12px 30px -16px rgba(0, 0, 0, 0.80);
+      gap: 8px;
+      padding: 6px 11px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
       color: var(--ink-soft);
       font-size: 12.5px;
       letter-spacing: 0.02em;
     }
-    .pill .dot {
+    .chip.brand {
+      color: #1f2937;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+    .chip .mark {
       width: 8px;
       height: 8px;
-      border-radius: 50%;
-      background: linear-gradient(140deg, var(--accent), var(--accent-2));
-      box-shadow: 0 0 12px rgba(125, 211, 252, 0.85);
+      border-radius: 1px;
+      background: var(--accent);
     }
-    .pill.tabular {
+    .chip.mono {
+      color: var(--ink-dim);
       font-family: var(--mono);
-      font-variant-numeric: tabular-nums;
       font-size: 12px;
+      font-variant-numeric: tabular-nums;
     }
 
-    .topbar {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 0 2px 16px;
-    }
-    .spacer { flex: 1; }
-
-    /* ---------- 主玻璃面板 ---------- */
-    .glass {
+    /* ---------- 主卡片：白底 + 顶部实色标尺 ---------- */
+    .card {
       position: relative;
-      padding: 40px 44px 42px;
-      border: 1px solid var(--glass-line);
-      border-radius: 26px;
-      background: linear-gradient(150deg,
-        rgba(255, 255, 255, 0.16) 0%,
-        rgba(255, 255, 255, 0.060) 36%,
-        rgba(255, 255, 255, 0.030) 100%);
-      backdrop-filter: blur(var(--blur)) saturate(1.75);
-      -webkit-backdrop-filter: blur(var(--blur)) saturate(1.75);
+      padding: 34px 40px 38px;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--accent);
+      border-radius: var(--radius);
+      background: var(--card);
       box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.40),
-        inset 1px 0 0 rgba(255, 255, 255, 0.14),
-        inset 0 -1px 0 rgba(255, 255, 255, 0.07),
-        inset -1px 0 0 rgba(255, 255, 255, 0.05),
-        0 34px 90px -34px rgba(0, 0, 0, 0.94),
-        0 0 72px -26px rgba(125, 211, 252, 0.45);
-      overflow: hidden;
-    }
-    /* 左上泛光 + 斜向反光条 */
-    .glass::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      background:
-        radial-gradient(120% 88% at 10% -12%, rgba(255, 255, 255, 0.17), transparent 58%),
-        linear-gradient(112deg,
-          rgba(255, 255, 255, 0.19) 0%,
-          rgba(255, 255, 255, 0.065) 17%,
-          rgba(255, 255, 255, 0) 41%,
-          rgba(255, 255, 255, 0) 63%,
-          rgba(255, 255, 255, 0.055) 100%);
-      pointer-events: none;
-      z-index: 0;
-    }
-    /* 顶棱聚光 */
-    .glass::after {
-      content: "";
-      position: absolute;
-      left: 13%;
-      right: 13%;
-      top: 0;
-      height: 1.5px;
-      border-radius: 2px;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78), rgba(196, 181, 253, 0.72), transparent);
-      z-index: 1;
-    }
-    .glass > * {
-      position: relative;
-      z-index: 2;
+        0 1px 2px rgba(17, 24, 39, 0.05),
+        0 10px 24px -20px rgba(17, 24, 39, 0.45);
     }
 
     /* ---------- 正文排版 ---------- */
@@ -195,39 +139,36 @@
     .md p { margin: 0 0 1.05em; }
 
     .md h1, .md h2, .md h3, .md h4, .md h5, .md h6 {
-      margin: 1.9em 0 0.7em;
+      margin: 1.8em 0 0.66em;
+      color: #0f172a;
       font-weight: 700;
-      line-height: 1.35;
-      color: #ffffff;
-      text-shadow: 0 1px 12px rgba(6, 10, 24, 0.55);
+      line-height: 1.36;
     }
     .md h1 {
       position: relative;
-      padding-bottom: 0.5em;
-      font-size: 1.64em;
-      letter-spacing: -0.01em;
+      padding-bottom: 0.44em;
+      font-size: 1.58em;
+      letter-spacing: -0.012em;
     }
     .md h1::after {
       content: "";
       position: absolute;
       left: 0;
       bottom: 0;
-      width: 68px;
+      width: 52px;
       height: 3px;
-      border-radius: 3px;
-      background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      box-shadow: 0 0 14px rgba(125, 211, 252, 0.55);
+      background: var(--accent);
     }
     .md h2 {
-      padding-left: 14px;
-      border-left: 3px solid rgba(255, 255, 255, 0.42);
-      font-size: 1.34em;
+      padding-left: 11px;
+      border-left: 3px solid var(--accent);
+      font-size: 1.3em;
     }
-    .md h3 { font-size: 1.16em; }
-    .md h4 { font-size: 1.03em; color: var(--ink-soft); }
+    .md h3 { font-size: 1.14em; }
+    .md h4 { font-size: 1.02em; color: var(--ink-soft); }
     .md h5, .md h6 {
-      font-size: 0.94em;
-      letter-spacing: 0.07em;
+      font-size: 0.9em;
+      letter-spacing: 0.09em;
       text-transform: uppercase;
       color: var(--ink-dim);
     }
@@ -235,25 +176,25 @@
     .md a {
       color: var(--accent);
       text-decoration: none;
-      border-bottom: 1px solid rgba(125, 211, 252, 0.42);
+      border-bottom: 1px solid rgba(37, 99, 235, 0.35);
     }
 
-    .md strong { font-weight: 650; color: #ffffff; }
+    .md strong { font-weight: 650; color: #0f172a; }
     .md em { color: var(--ink-soft); }
     .md del { color: var(--ink-dim); }
     .md mark {
-      padding: 0 0.12em;
-      color: #ffffff;
-      background: linear-gradient(180deg, transparent 56%, rgba(196, 181, 253, 0.42) 56%);
+      padding: 0 0.15em;
+      color: #1f2937;
+      background: #fde68a;
     }
     .md kbd {
-      padding: 0.28em 0.48em;
-      border: 1px solid var(--glass-line);
+      padding: 0.24em 0.44em;
+      border: 1px solid var(--line-strong);
       border-bottom-width: 2px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.10);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
-      color: #ffffff;
+      border-radius: 4px;
+      background: #ffffff;
+      box-shadow: 0 1px 0 rgba(17, 24, 39, 0.06);
+      color: var(--ink-soft);
       font: 600 0.82em/1 var(--mono);
     }
     .md abbr {
@@ -261,191 +202,164 @@
       text-decoration: none;
     }
 
-    .md ul, .md ol { margin: 0 0 1.05em; padding-left: 1.45em; }
-    .md li { margin: 0.4em 0; }
-    .md li::marker { color: rgba(125, 211, 252, 0.90); }
-    .md li > ul, .md li > ol { margin: 0.4em 0; }
+    .md ul, .md ol { margin: 0 0 1.05em; padding-left: 1.4em; }
+    .md ul { list-style-type: square; }
+    .md li { margin: 0.36em 0; }
+    .md li::marker { color: var(--accent); }
+    .md li > ul, .md li > ol { margin: 0.36em 0; }
 
     .md blockquote {
-      margin: 1.3em 0;
-      padding: 0.95em 1.2em;
-      border: 1px solid var(--glass-soft);
-      border-left: 3px solid rgba(196, 181, 253, 0.80);
-      border-radius: 4px 16px 16px 4px;
-      background: linear-gradient(120deg, rgba(196, 181, 253, 0.16), rgba(196, 181, 253, 0.04));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      margin: 1.25em 0;
+      padding: 0.85em 1.1em;
+      border-left: 3px solid var(--accent);
+      border-radius: 0 6px 6px 0;
+      background: #f5f8ff;
       color: var(--ink-soft);
     }
     .md blockquote > *:last-child { margin-bottom: 0; }
 
     .md hr {
       height: 1px;
-      margin: 2.1em 0;
+      margin: 2em 0;
       border: 0;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+      background: var(--line);
     }
 
     .md code {
-      padding: 0.16em 0.44em;
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 7px;
-      background: rgba(255, 255, 255, 0.10);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-      color: #d8ecff;
+      padding: 0.14em 0.4em;
+      border: 1px solid #dbe3ee;
+      border-radius: 4px;
+      background: #eef2f7;
+      color: #1d4ed8;
       font-family: var(--mono);
       font-size: 0.88em;
       white-space: break-spaces;
     }
     .md pre {
-      margin: 1.3em 0;
-      padding: 17px 19px;
-      border: 1px solid rgba(255, 255, 255, 0.13);
-      border-radius: 16px;
-      background: linear-gradient(150deg, rgba(3, 6, 14, 0.62), rgba(3, 6, 14, 0.42));
-      backdrop-filter: blur(8px) saturate(1.3);
-      -webkit-backdrop-filter: blur(8px) saturate(1.3);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.11),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+      margin: 1.25em 0;
+      padding: 15px 17px;
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--line-strong);
+      border-radius: 0 6px 6px 0;
+      background: #f7f9fb;
       overflow-x: auto;
       font-size: 13.5px;
-      line-height: 1.68;
+      line-height: 1.66;
     }
     .md pre code {
       padding: 0;
       border: 0;
       background: none;
-      box-shadow: none;
-      color: #e3ecff;
+      color: #1f2937;
       font-size: 1em;
       white-space: pre;
     }
 
     .md table {
       width: 100%;
-      margin: 1.3em 0;
-      border: 1px solid var(--glass-soft);
-      border-radius: 14px;
+      margin: 1.25em 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
       border-collapse: separate;
       border-spacing: 0;
       overflow: hidden;
-      background: rgba(255, 255, 255, 0.035);
+      background: #ffffff;
       font-size: 0.95em;
     }
     .md th, .md td {
-      padding: 0.62em 0.88em;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+      padding: 0.56em 0.82em;
+      border-bottom: 1px solid var(--line);
       text-align: left;
       overflow-wrap: anywhere;
     }
     .md thead th {
-      background: rgba(255, 255, 255, 0.085);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
-      color: #ffffff;
+      border-bottom: 1px solid var(--line-strong);
+      background: var(--tint);
+      color: #0f172a;
       font-weight: 650;
       white-space: nowrap;
     }
     .md tbody tr:last-child td { border-bottom: 0; }
-    .md tbody tr:nth-child(even) td { background: rgba(255, 255, 255, 0.022); }
+    .md tbody tr:nth-child(even) td { background: #fafbfd; }
 
     .md img {
       max-width: 100%;
       height: auto;
-      border: 1px solid var(--glass-soft);
-      border-radius: 14px;
-      box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.85);
+      border: 1px solid var(--line);
+      border-radius: 6px;
     }
 
     .md details {
-      margin: 1.2em 0;
-      padding: 0.9em 1.15em;
-      border: 1px solid var(--glass-soft);
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.045);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      margin: 1.15em 0;
+      padding: 0.8em 1.05em;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fafbfd;
     }
-    .md summary { font-weight: 600; color: #ffffff; }
-    .md details[open] summary { margin-bottom: 0.7em; }
+    .md summary { font-weight: 600; color: #0f172a; }
+    .md details[open] summary { margin-bottom: 0.65em; }
 
     .md .admonition {
-      margin: 1.3em 0;
-      padding: 0.95em 1.2em;
-      border: 1px solid var(--glass-soft);
+      margin: 1.25em 0;
+      padding: 0.9em 1.1em;
+      border: 1px solid #cddcf7;
       border-left: 3px solid var(--accent);
-      border-radius: 4px 14px 14px 4px;
-      background: rgba(125, 211, 252, 0.13);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      border-radius: 0 6px 6px 0;
+      background: #f2f7ff;
     }
     .md .admonition-title {
-      margin: 0 0 0.5em;
-      color: #ffffff;
+      margin: 0 0 0.45em;
+      color: #1e40af;
       font-weight: 650;
     }
-    .md .admonition.tip { border-left-color: #6ee7b7; background: rgba(110, 231, 183, 0.13); }
-    .md .admonition.warning { border-left-color: #fcd34d; background: rgba(252, 211, 77, 0.13); }
-    .md .admonition.danger { border-left-color: #fca5a5; background: rgba(252, 165, 165, 0.13); }
+    .md .admonition.tip { border-color: #c8ebdf; border-left-color: #0d9488; background: #f0fbf8; }
+    .md .admonition.tip .admonition-title { color: #0f766e; }
+    .md .admonition.warning { border-color: #f6e0b5; border-left-color: #d97706; background: #fff8ec; }
+    .md .admonition.warning .admonition-title { color: #b45309; }
+    .md .admonition.danger { border-color: #f7d4d4; border-left-color: #dc2626; background: #fef4f4; }
+    .md .admonition.danger .admonition-title { color: #b91c1c; }
 
     .md .toc {
-      margin: 1.3em 0;
-      padding: 0.95em 1.15em;
-      border: 1px dashed rgba(255, 255, 255, 0.22);
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.04);
+      margin: 1.25em 0;
+      padding: 0.85em 1.05em;
+      border: 1px dashed var(--line-strong);
+      border-radius: 6px;
+      background: #fafbfd;
       font-size: 0.94em;
     }
     .md .toc::before {
       content: "目录";
       display: block;
-      margin-bottom: 0.45em;
+      margin-bottom: 0.42em;
       color: var(--ink-dim);
       font-size: 0.78em;
       letter-spacing: 0.14em;
     }
     .md .toc ul { margin: 0; padding-left: 1.2em; }
 
-    /* ---------- 页脚玻璃条 ---------- */
-    .footbar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 16px 2px 0;
-      font-size: 12.5px;
-    }
-    .pill.tag {
-      font-family: var(--mono);
-      font-size: 11.5px;
-      color: var(--ink-dim);
-    }
-
-    @media (max-width: 1024px) {
-      .orb { display: none; }
-    }
     @media (max-width: 640px) {
-      body { padding: 30px 14px 38px; font-size: 15.5px; }
-      .glass { padding: 26px 20px 28px; border-radius: 20px; }
+      body { padding: 28px 14px 34px; font-size: 15.5px; }
+      .card { padding: 24px 18px 26px; border-radius: 8px; }
+      .topbar, .footbar { gap: 8px; }
     }
   </style>
 </head>
 <body>
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
-  <div class="orb orb-3"></div>
-
   <div class="page">
     <div class="topbar">
-      <span class="pill"><i class="dot"></i>{{ site_name or "AstrBot" }}</span>
+      <span class="chip brand"><i class="mark"></i>{{ site_name or "AstrBot" }}</span>
       <span class="spacer"></span>
-      {% if datetime %}<span class="pill tabular">{{ datetime }}</span>{% endif %}
+      {% if datetime %}<span class="chip mono">{{ datetime }}</span>{% endif %}
     </div>
 
-    <main class="glass">
+    <main class="card">
       <article class="md">{{ content | safe }}</article>
     </main>
 
     <div class="footbar">
-      <span class="pill">{{ footer_text or theme_name }}</span>
+      <span class="chip">{{ footer_text or theme_name }}</span>
       <span class="spacer"></span>
-      <span class="pill tag">{{ version }}</span>
+      <span class="chip mono">{{ version }}</span>
     </div>
   </div>
 </body>
